@@ -1,0 +1,5 @@
+{
+    "prescription" : 20,
+    "ptv" : "PTV_ENLARGED",
+    "oar" : [ "Skin", "Prox_bronchus", "Large_vessels", "trachea", "Lung", "Spinal_Cord", "Heart", "esophagus"]	
+}

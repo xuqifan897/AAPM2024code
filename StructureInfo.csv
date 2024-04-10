@@ -1,0 +1,11 @@
+Name,maxWeights,maxDose,minDoseTargetWeights,minDoseTarget,OARWeights,IdealDose
+PTV,100,20,100,20,NaN,20
+BODY,0,18,NaN,NaN,0,0
+Prox_bronchus,0,18,NaN,NaN,3,0
+Large_vessels,0,18,NaN,NaN,8,0
+trachea,0,18,NaN,NaN,20,0
+Lung,0,18,NaN,NaN,5,0
+Spinal_Cord,0,18,NaN,NaN,20,0
+Heart,0,18,NaN,NaN,5,0
+esophagus,0,18,NaN,NaN,20,0
+RingStructure,0,18,NaN,NaN,1,0

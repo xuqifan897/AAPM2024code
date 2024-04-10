@@ -1,0 +1,9 @@
+beamWeight,8000
+gamma,1
+eta,0.1
+numBeamsWeWant,20
+stepSize,1e-05
+maxIter,8000
+showTrigger,10
+ChangeWeightsTrigger,1000
+pruneTrigger,100,500,1000,2000,300,4000,5000
