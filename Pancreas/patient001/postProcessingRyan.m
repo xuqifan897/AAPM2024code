@@ -1,0 +1,10 @@
+patientFolder = '/data/qifan/projects/FastDoseWorkplace/Pancreas/Patient001';
+optFolder = fullfile(patientFolder, 'QihuiRyan');
+polishResultFile = fullfile(optFolder, 'PolishResultBW1000.mat');
+load(polishResultFile, 'PolishResult');
+doseArray = PolishResult.dose;
+doseArary = single(doseArray);
+doseFile = fullfile(optFolder, 'binaryDose1000.bin');
+fileID = fopen(doseFile, 'w');
+fwrite(fileID, doseArary, 'single');
+fclose(fileID);
