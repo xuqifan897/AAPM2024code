@@ -2,21 +2,16 @@
 
 exec="/data/qifan/projects/FastDose/build/bin/IMRT"
 dataFolder="/data/qifan/projects/FastDose/scripts"
-globalFolder="/data/qifan/projects/FastDoseWorkplace/CORTTune/Prostate"
-inputFolder="${globalFolder}/prep_output"
-outputFolder="${globalFolder}/doseMat"
-planFolder="${globalFolder}/plan1"
+expFolder="/data/qifan/projects/FastDoseWorkplace/DoseBench/water/width5mm"
 
+inputFolder="/data/qifan/projects/FastDoseWorkplace/DoseBench/water/prep_output"
 if [ ! -d ${inputFolder} ]; then
     echo "The folder ${inputFolder} doesn't exist."
 fi
 
+outputFolder="${expFolder}/doseMat"
 if [ ! -d ${outputFolder} ]; then
     mkdir ${outputFolder}
-fi
-
-if [ ! -d ${planFolder} ]; then
-    mkdir ${planFolder}
 fi
 
 dimFile="${inputFolder}/dimension.txt"
@@ -32,17 +27,18 @@ OMP_NUM_THREADS=64 ${exec} \
     --density "${inputFolder}/density.raw" \
     --structures ${VOIs} \
     --masks "${inputFolder}/roi_list.h5" \
-    --primaryROI "PTV_68" \
-    --bboxROI "BODY" \
-    --structureInfo "${globalFolder}/StructureInfo.csv" \
-    --params "${globalFolder}/params.txt" \
-    --beamlist "${globalFolder}/beamlist.txt" \
-    --mode 1 \
+    --primaryROI "PTV" \
+    --bboxROI "SKIN" \
+    --structureInfo "${expFolder}/StructureInfo.csv" \
+    --params "${expFolder}/params.txt" \
+    --beamlist "/data/qifan/projects/FastDoseWorkplace/DoseBench/water/beamlist.txt" \
+    --mode 0 \
     --deviceIdx 1 \
     --spectrum "${dataFolder}/spec_6mv.spec" \
     --kernel "${dataFolder}/kernel_exp_6mv.txt" \
+    --fluenceDim 9 \
     --subFluenceDim 16 \
     --outputFolder ${outputFolder} \
     --planFolder ${planFolder} \
-    --nBeamsReserve 435 \
-    --EstNonZeroElementsPerMat 6000000 \
+    --nBeamsReserve 1 \
+    --EstNonZeroElementsPerMat 10000000
