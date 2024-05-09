@@ -232,7 +232,7 @@ def drawDVH_opt():
 
 
 if __name__ == '__main__':
-    # doseMatMerge()
+    doseMatMerge()
     # StructInfoGen()
-    drawDoseWash()
+    # drawDoseWash()
     # drawDVH_opt()

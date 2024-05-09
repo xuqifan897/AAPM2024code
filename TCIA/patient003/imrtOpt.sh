@@ -37,7 +37,7 @@ OMP_NUM_THREADS=64 ${exec} \
     --bboxROI "SKIN" \
     --structureInfo "${expFolder}/StructureInfo.csv" \
     --params "${expFolder}/params.txt" \
-    --beamlist "${expFolder}/beamlist$.txt" \
+    --beamlist "${expFolder}/beamlist.txt" \
     --mode 1 \
     --deviceIdx 1 \
     --spectrum "${dataFolder}/spec_6mv.spec" \
