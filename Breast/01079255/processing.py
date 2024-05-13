@@ -521,7 +521,7 @@ def drawDVHComp():
     dicomDoseArray = dicomDoseArray * 30 / threshDicom
 
     # bring PTV forward
-    exclude = [PTVName, "PTV_PBI_L"]
+    exclude = [PTVName, "PTV_PBI_L", "RingStructure"]
     structures = [a for a in structures if a[0] not in exclude]
     structures.insert(0, (PTVName, PTVMask))
 
