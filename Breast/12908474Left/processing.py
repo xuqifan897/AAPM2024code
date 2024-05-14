@@ -49,6 +49,8 @@ def initialProcessing():
     RTStruct = RTStructBuilder.create_from(
         dicom_series_path=dicomFolder, rt_struct_path=rtFile)
     structureNames = RTStruct.get_roi_names()
+    print(structureNames)
+    return
     # for a in names_useful:
     #     assert a in structureNames, "The structure {} not included in the structure list".format(a)
     # structureNames = names_useful

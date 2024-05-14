@@ -3,7 +3,7 @@
 exec="/data/qifan/projects/FastDose/build/bin/IMRT"
 dataFolder="/data/qifan/projects/FastDose/scripts"
 rootFolder="/data/qifan/projects/FastDoseWorkplace/Breast"
-patientName="01079255"
+patientName="77881484"
 
 patientFolder="${rootFolder}/${patientName}"
 expFolder="${patientFolder}/expFolder"
@@ -11,21 +11,19 @@ inputFolder="${expFolder}/prep_output"
 optResultFolder="${expFolder}/plan1"
 doseMatFolder="${expFolder}/doseMat"
 if [ ! -d ${inputFolder} ]; then
-    echo "The folder ${inputFolder} doesn't exist."
+    echo "The folder ${inputFolder} doesn't exist"
 fi
 if [ ! -d ${optResultFolder} ]; then
     mkdir ${optResultFolder}
 fi
-if [ ! -d ${doseMatFolder} ]; then
-    mkdir ${doseMatFolder}
-fi
 
-dimFile="${expFolder}/prep_output/dimension.txt"
+dimFile="${inputFolder}/dimension.txt"
 readarray -t lines < ${dimFile}
 phantomDim=${lines[0]}
 voxelSize=${lines[1]}
 VOIs=${lines[2]}
-logFile="${expFolder}/dosecalc.log"
+logFile="${expFolder}/optimize.log"
+
 OMP_NUM_THREADS=64 ${exec} \
     --phantomDim ${phantomDim} \
     --voxelSize ${voxelSize} \
@@ -33,13 +31,13 @@ OMP_NUM_THREADS=64 ${exec} \
     --density "${inputFolder}/density.raw" \
     --structures ${VOIs} \
     --masks "${inputFolder}/roi_list.h5" \
-    --primaryROI "d_eval_PTV" \
-    --bboxROI "Body" \
+    --primaryROI "PTV_PBI_L" \
+    --bboxROI "External" \
     --structureInfo "${expFolder}/StructureInfo.csv" \
     --params "${expFolder}/params.txt" \
     --beamlist "${expFolder}/beamlist.txt" \
-    --mode 0 \
-    --deviceIdx 0 \
+    --mode 1 \
+    --deviceIdx 1 \
     --spectrum "${dataFolder}/spec_6mv.spec" \
     --kernel "${dataFolder}/kernel_exp_6mv.txt" \
     --fluenceDim 20 \

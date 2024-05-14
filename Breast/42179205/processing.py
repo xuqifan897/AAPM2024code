@@ -12,13 +12,12 @@ from scipy.interpolate import RegularGridInterpolator
 colors = list(mcolors.TABLEAU_COLORS.values()) + list(mcolors.XKCD_COLORS.values())
 colors[7] = colors[-1]
 rootFolder = "/data/qifan/projects/FastDoseWorkplace/Breast"
-patientName = "12908474Right"
+patientName = "42179205"
 targetResolution = np.array((2.5, 2.5, 2.5))  # mm
 
-names_useful = ["A_LAD", "Heart", "Lung_L", "Lung_R", "Esophagus (1)", "Kidneys", "Liver",
-                "SpinalCord", "d_Breast_R - PTV", "Breast_L (1)", "Nipple (1)", "PTV_PBI_R",
-                "External"]
-PTVName = "PTV_PBI_R"
+names_useful = ["Body", "Breast_R", "Esophagus", "Glnd_Thyroid", "Heart", "Nipple", "Lung_L",
+                "Lung_R", "SpinalCord", "A_LAD", "PTV_PBI_L", "External", "d_Breast_L-PTV"]
+PTVName = "PTV_PBI_L"
 BodyName = "External"
 
 def nameTrim(name: str):

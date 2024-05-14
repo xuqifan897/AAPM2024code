@@ -31,13 +31,13 @@ OMP_NUM_THREADS=64 ${exec} \
     --density "${inputFolder}/density.raw" \
     --structures ${VOIs} \
     --masks "${inputFolder}/roi_list.h5" \
-    --primaryROI "PTV_PBI_L" \
+    --primaryROI "d_eval_PTV" \
     --bboxROI "Body" \
     --structureInfo "${expFolder}/StructureInfo.csv" \
     --params "${expFolder}/params.txt" \
     --beamlist "${expFolder}/beamlist.txt" \
     --mode 1 \
-    --deviceIdx 0 \
+    --deviceIdx 3 \
     --spectrum "${dataFolder}/spec_6mv.spec" \
     --kernel "${dataFolder}/kernel_exp_6mv.txt" \
     --fluenceDim 20 \

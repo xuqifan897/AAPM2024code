@@ -2,7 +2,7 @@
 
 exec="/data/qifan/projects/FastDose/build/bin/preprocess"
 rootFolder="/data/qifan/projects/FastDoseWorkplace/Breast"
-patientName="01079255"
+patientName="42179205"
 
 patientFolder="${rootFolder}/${patientName}"
 expFolder="${patientFolder}/expFolder"
@@ -14,11 +14,11 @@ fi
 ${exec} \
     --mode 1 \
     --structuresFile "${expFolder}/structures.json" \
-    --ptv_name "d_eval_PTV" \
-    --bbox_name "Body" \
+    --ptv_name "PTV_PBI_L" \
+    --bbox_name "External" \
     --voxelSize 0.25 \
     --inputFolder ${inputFolder} \
-    --shape 240 240 162 \
+    --shape 240 240 165 \
     --phantomPath "${expFolder}/density_raw.bin" \
     --RescaleSlope 1.0 \
     --RescaleIntercept -1000.0 \

@@ -3,7 +3,7 @@
 exec="/data/qifan/projects/FastDose/build/bin/IMRT"
 dataFolder="/data/qifan/projects/FastDose/scripts"
 rootFolder="/data/qifan/projects/FastDoseWorkplace/Breast"
-patientName="01079255"
+patientName="50023133"
 
 patientFolder="${rootFolder}/${patientName}"
 expFolder="${patientFolder}/expFolder"
@@ -33,8 +33,8 @@ OMP_NUM_THREADS=64 ${exec} \
     --density "${inputFolder}/density.raw" \
     --structures ${VOIs} \
     --masks "${inputFolder}/roi_list.h5" \
-    --primaryROI "d_eval_PTV" \
-    --bboxROI "Body" \
+    --primaryROI "PTV_PBI_L" \
+    --bboxROI "External" \
     --structureInfo "${expFolder}/StructureInfo.csv" \
     --params "${expFolder}/params.txt" \
     --beamlist "${expFolder}/beamlist.txt" \
