@@ -238,7 +238,10 @@ def StructureInfoGen():
         newline = "{},100,{},100,{},NaN,{}".format(name, dose, dose, dose)
         content = content + "\n" + newline
     for name in OARs:
-        newline = newline = "{},0,18,NaN,NaN,5,0".format(name)
+        if name == "RingStructure":
+            newline = "{},0,18,NaN,NaN,1,0".format(name)
+        else:
+            newline = "{},0,18,NaN,NaN,5,0".format(name)
         content = content + "\n" + newline
     print(content)
     
@@ -518,7 +521,7 @@ def summarize():
         os.mkdir(sumFolder)
     inputInfo = [
         ("HGJ_001", "benchmark", "plan1_benchmark"),
-        ("HGJ_001", "our_model", "plan2_our_model"),
+        ("HGJ_001", "our_model", "plan1_our_model"),
         ("HN_002", "benchmark", "plan1_benchmark"),
         ("HN_002", "our_model", "plan1_our_model")
     ]
@@ -553,8 +556,8 @@ if __name__ == "__main__":
     # writeArray()
     # structureGen()
     # StructureInfoGen()
-    # doseMatMerge()
+    doseMatMerge()
     # drawDose_opt()
     # drawDoseWash()
     # patient_HGJ_001_DVH_comp()
-    summarize()
+    # summarize()

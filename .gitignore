@@ -1,3 +1,12 @@
 HeadCTSegmentation
 RE02
 .vscode
+*.sty
+*.cls
+*.clo
+*.pdf
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.synctex.gz
