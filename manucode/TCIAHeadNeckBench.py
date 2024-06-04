@@ -145,12 +145,12 @@ def DVH_plot():
             y_axis = np.linspace(100, 0, np.sum(mask)+1)
             ax.plot(StructDoseExp, y_axis, color=colorMap[name], linewidth=2.0)
             ax.plot(StructDoseRef, y_axis, color=colorMap[name], linewidth=2.0, linestyle="--")
-            # ax.set_xlabel("Dose (Gy)", fontsize=16)
-            # ax.set_ylabel("Fractional Volume (%)", fontsize=16)
-            ax.tick_params(axis="x", labelsize=14)
-            ax.tick_params(axis="y", labelsize=14)
-            ax.set_title("Patient {}".format(patient), fontsize=16)
             print(name)
+        # ax.set_xlabel("Dose (Gy)", fontsize=16)
+        # ax.set_ylabel("Fractional Volume (%)", fontsize=16)
+        ax.tick_params(axis="x", labelsize=14)
+        ax.tick_params(axis="y", labelsize=14)
+        ax.set_title("Patient {}".format(patient), fontsize=16)
         print()
     fig.delaxes(axes[2, 2])
 
@@ -615,7 +615,7 @@ def CoalesceFigures():
     patients = [3, 13]
     patients = ["{:03d}".format(a) for a in patients]
     CorpusFolder = os.path.join(ManuFiguresFolder, "DoseWashSample")
-    directionList = [("Axial", 200), ("Sagittal", 350), ("Coronal", 450)]
+    directionList = [("Axial", 300), ("Sagittal", 350), ("Coronal", 450)]
     widthTotal = 0
     for direction, width in directionList:
         widthTotal += width
@@ -646,7 +646,7 @@ def CoalesceFigures():
         text = "Patient{} Ours".format(patient)
         position = (10, 10)
         color = (255, 255, 255)
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 30)
         draw.text(position, text, fill=color, font=font)
         imageExp = np.array(imageExp)
         
