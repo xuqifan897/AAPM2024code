@@ -73,7 +73,7 @@ def main():
         # Extract Centerline
         CCCS_centerline_idx = int(CCCS_fluence_dim / 2)
         CCCS_centerline = CCCS_Array[:, CCCS_centerline_idx, CCCS_centerline_idx].copy()
-        CCCS_depth = (np.arange(CCCS_Array_DimZ) + 0.5) * CCCS_long_spacing
+        CCCS_depth = np.arange(CCCS_Array_DimZ) * CCCS_long_spacing
 
         MC_centerline_idx = int((MC_dim[0]-1)/2)
         MC_centerline = MCArray[MC_centerline_idx-samplingWidth : MC_centerline_idx+samplingWidth+1,
@@ -191,7 +191,7 @@ def comp_gamma_index():
         # Extract Centerline
         CCCS_centerline_idx = int(CCCS_fluence_dim / 2)
         CCCS_centerline = CCCS_Array[:, CCCS_centerline_idx, CCCS_centerline_idx].copy()
-        CCCS_depth = (np.arange(CCCS_Array_DimZ) + 0.5) * CCCS_long_spacing
+        CCCS_depth = np.arange(CCCS_Array_DimZ) * CCCS_long_spacing
 
         MC_centerline_idx = int((MC_dim[0]-1)/2)
         MC_centerline = MCArray[MC_centerline_idx-samplingWidth : MC_centerline_idx+samplingWidth+1,

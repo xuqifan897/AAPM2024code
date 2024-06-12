@@ -1,6 +1,7 @@
 HeadCTSegmentation
 RE02
 DoseWashSample
+BeamOrienSample
 .vscode
 *.sty
 *.cls

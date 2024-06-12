@@ -2,16 +2,16 @@
 2mm/2% passing rate:
 | width | passing rate |
 |-|-|
-| 0.5cm | 97.26% |
-| 1.0cm | 94.53% |
-| 2.0cm | 96.09% |
+| 0.5cm | 98.83% |
+| 1.0cm | 98.83% |
+| 2.0cm | 98.83% |
 ## Water dose accuracy
 2mm/2% passing rate:
 | with | passing rate |
 |-|-|
-| 0.5cm | 96.09 |
-| 1.0cm | 94.53 |
-| 2.0cm | 91.40 |
+| 0.5cm | 99.61% |
+| 1.0cm | 100.00% |
+| 2.0cm | 98.83% |
 
 ## Dose calculation time
 | Case \ Group | Ours | Baseline | Speedup |
