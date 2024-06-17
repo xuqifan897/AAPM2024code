@@ -165,6 +165,7 @@ def nrrdModify():
     """
     This function modifies the original nrrd file
     """
+    beamList = genBeamList()
     for patient in patients:
         patientFolder = os.path.join(RootFolder, patient)
         templateFile = os.path.join(patientFolder, "RTSTRUCT.nrrd")
@@ -180,6 +181,12 @@ def nrrdModify():
         skinMask = convolve(skinMask, convolveKernel, mode="same")
         skinMask = skinMask > 0
         masks["SKIN"] = skinMask
+
+        PTVMerge = np.logical_or(masks["PTV70"], masks["PTV56"])
+        resolution = header["space directions"]
+        resolution = (resolution[1, 0], resolution[2, 1], resolution[3, 2])
+        beamMask = genBeamMask(patient, beamList, PTVMerge, resolution)
+        break
 
         shape = header["sizes"][1:]
         commonExtent = "0 {} 0 {} 0 {}".format(*shape)
@@ -209,6 +216,255 @@ def nrrdModify():
         break
 
 
+def genBeamList():
+    beamList = []
+    for i in range(4):
+        file0 = os.path.join(RootFolder, "beamlistSeg{}Split0.txt".format(i))
+        with open(file0, "r") as f:
+            beams0 = f.readlines()
+        for j in range(len(beams0)):
+            line = beams0[j]
+            line = line.replace("\n", "")
+            line = line.replace(" ", ", ")
+            line = eval(line)
+            beamList.append((i, line))  # isocenter Idx, angles
+        
+        file1 = os.path.join(RootFolder, "beamlistSeg{}Split1.txt".format(i))
+        with open(file1, "r") as f:
+            beams1 = f.readlines()
+        for j in range(len(beams1)):
+            line = beams1[j]
+            line = line.replace("\n", "")
+            line = line.replace(" ", ", ")
+            line = eval(line)
+            beamList.append((i, line))  # isocenter Idx, angles
+    return beamList
+
+
+def genBeamMask(patient, beamList, PTVMaskMerge, resolution):
+    ## Firstly, segment the PTV masks and calculate the centroids for each segment
+    PTVSegs = {}
+    AxisX = np.any(PTVMaskMerge, axis=(0, 1))
+    indices = [a for a in range(AxisX.size) if AxisX[a]]
+    AxisXLower = min(indices)
+    AxisXUpper = max(indices) + 1
+    AxisXMiddle = int((AxisXLower + AxisXUpper) / 2)
+    AxisXPoints = [AxisXLower, AxisXMiddle, AxisXUpper]
+
+    AxisZ = np.any(PTVMaskMerge, axis=(1, 2))
+    indices = [a for a in range(AxisZ.size) if AxisZ[a]]
+    AxisZLower = min(indices)
+    AxisZUpper = max(indices) + 1
+    AxisZMiddle = int((AxisZLower + AxisZUpper) / 2)
+    AxisZPoints = [AxisZLower, AxisZMiddle, AxisZUpper]
+
+    weight_x = np.arange(PTVMaskMerge.shape[0])
+    weight_x = np.expand_dims(weight_x, axis=(1, 2))
+    weight_y = np.arange(PTVMaskMerge.shape[1])
+    weight_y = np.expand_dims(weight_y, axis=(0, 2))
+    weight_z = np.arange(PTVMaskMerge.shape[2])
+    weight_z = np.expand_dims(weight_z, axis=(0, 1))
+
+    for i in range(2):
+        IdxXBegin = AxisXPoints[i]
+        IdxXEnd = AxisXPoints[i+1]
+        for j in range(2):
+            IdxZBegin = AxisZPoints[j]
+            IdxZEnd = AxisZPoints[j+1]
+            Mask = np.zeros_like(PTVMaskMerge)
+            Mask[IdxZBegin: IdxZEnd, :, IdxXBegin: IdxXEnd] = 1
+            PTVAndMask = np.logical_and(PTVMaskMerge, Mask)
+            
+            # calculate centroid
+            denominator = np.sum(PTVAndMask)
+            idx_x = np.sum(weight_x * PTVAndMask) / denominator
+            idx_y = np.sum(weight_y * PTVAndMask) / denominator
+            idx_z = np.sum(weight_z * PTVAndMask) / denominator
+            coords = (idx_x, idx_y, idx_z)
+
+            PTVSegIdx = i * 2 + j
+            PTVSegs[PTVSegIdx] = coords  # unit: voxel
+
+
+    # secondly, find the number of beams selected
+    beamsMetadata = []
+    metadataFile = os.path.join(RootFolder, patient, "FastDose", "plan1", "metadata.txt")
+    with open(metadataFile, "r") as f:
+        lines = f.readlines()
+    beamIndices = lines[3]
+    beamIndices = beamIndices.replace("\n", "")
+    beamIndices = beamIndices.replace("  ", " ")
+    beamIndices = beamIndices.split(" ")
+    beamIndices = [eval(a) for a in beamIndices if a != ""]
+    for idx in beamIndices:
+        isocenterIdx, angles = beamList[idx]  # units: voxel, degree
+        isocenterCoords = PTVSegs[isocenterIdx]
+        beamsMetadata.append((isocenterCoords, angles))
+    
+    if True:
+        for entry in beamsMetadata:
+            print(entry)
+
+
+def angle2Vec():
+    pass
+
+
+def nrrdGen_exp():
+    """
+    This function tests to generate a nrrd file
+    """
+    for patient in patients:
+        patientFolder = os.path.join(RootFolder, patient)
+        templateFile = os.path.join(patientFolder, "RTSTRUCT.nrrd")
+        seg, header = nrrd.read(templateFile)
+
+        # remove structures
+        idx = 0
+        while True:
+            beginning = "Segment{}_".format(idx)
+            idx += 1
+            key = beginning + "Color"
+            if key not in header:
+                break
+            del header[beginning + "Color"]
+            del header[beginning + "ColorAutoGenerated"]
+            del header[beginning + "Extent"]
+            del header[beginning + "ID"]
+            del header[beginning + "LabelValue"]
+            del header[beginning + "Layer"]
+            del header[beginning + "Name"]
+            del header[beginning + "NameAutoGenerated"]
+            del header[beginning + "Tags"]
+
+        dimension = seg.shape[1:]
+        globalExtent = "0 {} 0 {} 0 {}".format(*dimension)
+        numStructures = 3
+        maskShape = (3, dimension[0], dimension[1], dimension[2])
+        
+        # mask 1
+        singleMaskShape = (1, dimension[0], dimension[1], dimension[2])
+        mask1 = np.zeros(singleMaskShape, dtype=np.uint8)
+        mask1[:, :100, :100, :100] = 1
+        # mask 2
+        mask2 = np.zeros_like(mask1)
+        mask2[:, 250: 350, 250:350, 20: 120] = 1
+        # mask 3
+        mask3 = np.zeros_like(mask1)
+        mask3[:, 275: 325, 275: 325, :] = 1
+        mask = np.concatenate((mask1, mask2, mask3), axis=0)
+
+        header = list(header.items())
+        head = header[: 8]
+        tail = header[8:]
+        middle = []
+        for i in range(numStructures):
+            beginning = "Segment{}_".format(i)
+            middle.append((beginning + "Color", hex_to_rgb(colors[i])))
+            middle.append((beginning + "ColorAutoGenerated", "1"))
+            middle.append((beginning + "Extent", globalExtent))
+            middle.append((beginning + "ID", beginning))
+            middle.append((beginning + "LabelValue", "1"))
+            middle.append((beginning + "Layer", str(i)))
+            middle.append((beginning + "Name", beginning))
+            middle.append((beginning + "NameAutoGenerated", 1))
+            middle.append((beginning + "Tags", f"DicomRtImport.RoiNumber:{i+1}|TerminologyEntry:Segmentation " \
+                "category and type - 3D Slicer General Anatomy list~SCT^85756007^Tissue~SCT^85756007^Tissue~^^~" \
+                "Anatomic codes - DICOM master list~^^~^^|"))
+        
+        header = head + middle + tail
+        header = OrderedDict(header)
+        file = os.path.join(patientFolder, "RT_exp2.nrrd")
+        nrrd.write(file, mask, header)
+        break
+
+
+def nrrdGen():
+    beamList = genBeamList()
+    for patient in patients:
+        patientFolder = os.path.join(RootFolder, patient)
+        templateFile = os.path.join(patientFolder, "RTSTRUCT.nrrd")
+        seg, header = nrrd.read(templateFile)
+        dimension = seg.shape[1: ]
+
+        masks, _ = readMasks(seg, header)
+        maskTrim(masks)
+        nMasks = len(masks)
+
+        PTVMaskMerge = np.logical_or(masks["PTV70"], masks["PTV56"])
+        resolution = header["space directions"]
+        resolution = (resolution[1, 0], resolution[2, 1], resolution[3, 2])
+        beamMask = genBeamMask(patient, beamList, PTVMaskMerge, resolution)
+        break
+
+        # refine SKIN mask
+        skinName = "SKIN"
+        skinMask = masks[skinName]
+        convolveKernel = np.ones((3, 3, 3), dtype=np.uint8)
+        skinMask = convolve(skinMask, convolveKernel, mode="same")
+        skinMask = skinMask >= 8
+        masks[skinName] = skinMask
+
+        maskList = []
+        for name, mask in masks.items():
+            mask = np.expand_dims(mask, axis=0).astype(np.uint8)
+            maskList.append(mask)
+        seg = np.concatenate(maskList, axis=0)
+
+        # remove structures
+        idx = 0
+        while True:
+            beginning = "Segment{}_".format(idx)
+            idx += 1
+            key = beginning + "Color"
+            if key not in header:
+                break
+            del header[beginning + "Color"]
+            del header[beginning + "ColorAutoGenerated"]
+            del header[beginning + "Extent"]
+            del header[beginning + "ID"]
+            del header[beginning + "LabelValue"]
+            del header[beginning + "Layer"]
+            del header[beginning + "Name"]
+            del header[beginning + "NameAutoGenerated"]
+            del header[beginning + "Tags"]
+
+        header = list(header.items())
+        head = header[: 8]
+        tail = header[8:]
+
+        globalExtent = "0 {} 0 {} 0 {}".format(*dimension)
+        middle = []
+        for i, name in enumerate(masks.keys()):
+            color = hex_to_rgb(colorMap[name])
+            beginning = "Segment{}_".format(i)
+            localList = []
+            localList.append((beginning + "Color", color))
+            localList.append((beginning + "ColorAutoGenerated", "1"))
+            localList.append((beginning + "Extent", globalExtent))
+            localList.append((beginning + "ID", name))
+            localList.append((beginning + "LabelValue", "1"))
+            localList.append((beginning + "Layer", str(i)))
+            localList.append((beginning + "Name", name))
+            localList.append((beginning + "NameAutoGenerated", 1))
+            localList.append((beginning + "Tags", f"DicomRtImport.RoiNumber:{i+1}|TerminologyEntry:Segmentation " \
+                "category and type - 3D Slicer General Anatomy list~SCT^85756007^Tissue~SCT^85756007^Tissue~^^~" \
+                "Anatomic codes - DICOM master list~^^~^^|"))
+            middle.append((beginning, localList))
+        middle.sort(key=lambda a: a[0])
+        middle_result = []
+        for name, localList in middle:
+            middle_result.extend(localList)
+        
+        header = head + middle_result + tail
+        header = OrderedDict(header)
+        file = os.path.join(patientFolder, "RT_exp3.nrrd")
+        nrrd.write(file, seg, header)
+        break
+
+
 if __name__ == "__main__":
     StructsInit()
-    nrrdModify()
+    # nrrdModify()
+    # nrrdGen_exp()
+    nrrdGen()

@@ -1,13 +1,14 @@
 #!/bin/bash
 
-PatientName="190"
+PatientName="002"
 exec="/data/qifan/projects/FastDose/build/bin/IMRT"
 dataFolder="/data/qifan/projects/FastDose/scripts"
 RootFolder="/data/qifan/projects/FastDoseWorkplace/TCIAAdd"
 FastDoseFolder="${RootFolder}/${PatientName}/FastDose"
 
+planNo=7
 inputFolder="${FastDoseFolder}/prep_output"
-planFolder="${FastDoseFolder}/plan1"
+planFolder="${FastDoseFolder}/plan${planNo}"
 
 if [ ! -d ${inputFolder} ]; then
     echo "The folder ${inputFolder} doesn't exist."
@@ -44,11 +45,11 @@ ${exec} \
     --masks "${inputFolder}/roi_list.h5" \
     --primaryROI "PTVMerge.bin" \
     --bboxROI "SKIN" \
-    --structureInfo "${FastDoseFolder}/StructureInfo.csv" \
-    --params "${FastDoseFolder}/params.txt" \
+    --structureInfo "${FastDoseFolder}/StructureInfo${planNo}.csv" \
+    --params "${FastDoseFolder}/params${planNo}.txt" \
     --beamlist - \
     --mode 1 \
-    --deviceIdx 3 \
+    --deviceIdx 1 \
     --spectrum "${dataFolder}/spec_6mv.spec" \
     --kernel "${dataFolder}/kernel_exp_6mv.txt" \
     --fluenceDim 20 \

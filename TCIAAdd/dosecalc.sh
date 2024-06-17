@@ -43,7 +43,7 @@ for primaryROI in 0 1 2 3; do
             --params "-" \
             --beamlist "${RootFolder}/beamlistSeg${primaryROI}Split${split}.txt" \
             --mode 0 \
-            --deviceIdx 2 \
+            --deviceIdx 1 \
             --spectrum "${dataFolder}/spec_6mv.spec" \
             --kernel "${dataFolder}/kernel_exp_6mv.txt" \
             --fluenceDim 20 \
