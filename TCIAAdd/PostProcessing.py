@@ -10,7 +10,7 @@ from skimage import measure
 colors = list(mcolors.TABLEAU_COLORS.values()) + list(mcolors.XKCD_COLORS.values())
 RootFolder = "/data/qifan/projects/FastDoseWorkplace/TCIAAdd"
 PatientName = "002"
-planNo = 7
+planNo = 8
 
 def drawDVH_opt():
     """
@@ -262,7 +262,7 @@ def drawSlice(densitySlice, doseSlice, maskSlice, outputFile):
                 plt.plot(contour[:, 1], contour[:, 0], color=color)
 
     if True:
-        alpha = (doseSlice > 75) * 0.5
+        alpha = (doseSlice > 80) * 0.5
     else:
         alpha = (doseSlice > 5) * 0.5
     vmax = 100

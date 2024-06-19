@@ -1,6 +1,6 @@
 #!/bin/bash
 
-patient="190"
+patient="002"
 
 exec="/data/qifan/projects/FastDose/build/bin/IMRT"
 dataFolder="/data/qifan/projects/FastDose/scripts"

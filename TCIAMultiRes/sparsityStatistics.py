@@ -2,14 +2,51 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
+threshold = 0.5
 
-def doseExamine():
+def showStat():
+    valueBuffer = "/data/qifan/projects/FastDoseWorkplace/TCIAAdd/002" \
+        "/FastDose/dosecalcSeg0Split0/doseMatFolder/valuesBuffer.bin"
+    valueBuffer = np.fromfile(valueBuffer, dtype=np.float32)
+    np.random.shuffle(valueBuffer)
+
+    nSamples = 10000
+    valueBuffer = valueBuffer[:nSamples]
+    valueBuffer = np.sort(valueBuffer)
+    xAxis = np.arange(nSamples)
+    plt.plot(xAxis, valueBuffer)
+    plt.xlabel("# sample")
+    plt.ylabel("dose value")
+    image = "/data/qifan/projects/AAPM2024/TCIASpar/sparseStat.png"
+    plt.title("Voxel dose statistics")
+    plt.savefig(image)
+    plt.clf()
+
+    content = "| dose | percentile |\n|-|-|"
+    idx = 0
+    dose_values = [0.1, 0.2, 0.3, 0.4, 0.5]
+    for i in dose_values:
+        while True:
+            if idx == nSamples:
+                break
+            if valueBuffer[idx] >= i:
+                percentile = idx / nSamples
+                newLine = "| {} | {} |".format(i, percentile)
+                content = content + "\n" + newLine
+                idx += 1
+                break
+            idx += 1
+    file = "/data/qifan/projects/AAPM2024/TCIASpar/sparseStat2.md"
+    with open(file, "w") as f:
+        f.write(content)
+
+
+def evalThresh():
     """
-    This function is to visualize the dose calculated by our CCCS algorithm
+    This function evaluates the effect of different sparsification thresholds
     """
-    patientFolder = "/data/qifan/projects/FastDoseWorkplace/TCIAAdd/009"
-    FastDoseFolder = os.path.join(patientFolder, "FastDose")
-    doseMatFolder = os.path.join(FastDoseFolder, "dosecalcSeg0Split0", "doseMatFolder")
+    patientFolder = "/data/qifan/projects/FastDoseWorkplace/TCIAAdd/002"
+    doseMatFolder = os.path.join(patientFolder, "FastDose", "dosecalcSeg0Split0", "doseMatFolder")
 
     metadata = os.path.join(patientFolder, "metadata.txt")
     with open(metadata, "r") as f:
@@ -33,13 +70,17 @@ def doseExamine():
     numMatrices = numRowsPerMat.size
     assert numMatrices == NonZeroElements.size
 
-    resultFolder = os.path.join(patientFolder, "beamDose")
+    resultFolder = os.path.join(patientFolder, "beamDose_thresh{}".format(threshold))
     if not os.path.isdir(resultFolder):
         os.mkdir(resultFolder)
 
     offsetsIdx = 0
     columnsIdx = 0
     for idx in range(numMatrices):
+        # early stop
+        if idx == 10:
+            break
+
         localRows = numRowsPerMat[idx]
         localNNZ = NonZeroElements[idx]
 
@@ -48,7 +89,10 @@ def doseExamine():
 
         columnsIdxEnd = int(columnsIdx + localNNZ)
         localColumns = columnsBuffer[columnsIdx: columnsIdxEnd]
-        localValues = valuesBuffer[columnsIdx: columnsIdxEnd]
+        localValues = valuesBuffer[columnsIdx: columnsIdxEnd].copy()
+
+        # apply pruning
+        localValues[localValues < threshold] = 0
 
         offsetsIdx = offsetsIdxEnd
         columnsIdx = columnsIdxEnd
@@ -72,9 +116,9 @@ def doseExamine():
 
 
 def beamDoseView():
-    patientFolder = "/data/qifan/projects/FastDoseWorkplace/TCIAAdd/009"
-    beamDoseFolder = os.path.join(patientFolder, "beamDose")
-    doseViewFolder = os.path.join(patientFolder, "beamDoseView")
+    patientFolder = "/data/qifan/projects/FastDoseWorkplace/TCIAAdd/002"
+    beamDoseFolder = os.path.join(patientFolder, "beamDose_thresh{}".format(threshold))
+    doseViewFolder = os.path.join(patientFolder, "beamDoseView_thresh{}".format(threshold))
     if not os.path.isdir(doseViewFolder):
         os.mkdir(doseViewFolder)
 
@@ -111,5 +155,6 @@ def beamDoseView():
 
 
 if __name__ == "__main__":
-    # doseExamine()
+    # showStat()
+    # evalThresh()
     beamDoseView()

@@ -3,10 +3,10 @@
 PatientName="002"
 exec="/data/qifan/projects/FastDose/build/bin/IMRT"
 dataFolder="/data/qifan/projects/FastDose/scripts"
-RootFolder="/data/qifan/projects/FastDoseWorkplace/TCIAAdd"
+RootFolder="/data/qifan/projects/FastDoseWorkplace/TCIAPTVGap"
 FastDoseFolder="${RootFolder}/${PatientName}/FastDose"
 
-planNo=8
+planNo=1
 inputFolder="${FastDoseFolder}/prep_output"
 planFolder="${FastDoseFolder}/plan${planNo}"
 
