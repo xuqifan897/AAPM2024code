@@ -8,8 +8,8 @@ from PIL import Image, ImageDraw, ImageFont
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-resultFolder = "/data/qifan/projects/FastDoseWorkplace/TCIAAdd"
-figureFolder = "/data/qifan/projects/AAPM2024/manufigures"
+resultFolder = "/data/qifan/FastDoseWorkplace/TCIAAdd"
+figureFolder = "/data/qifan/AAPM2024/manufigures"
 patients = ["002", "003", "009", "013", "070", "125", "132", "190"]
 
 StructureList = []
@@ -29,6 +29,8 @@ for i in colors_skip:
     colors[i] = colors[idx]
     idx += 1
 colorMap = {}
+
+doseShowMax = 95
 
 def StructsInit():
     """
@@ -52,6 +54,12 @@ def StructsInit():
         if name not in StructureList_copy and name not in exclude and "+" not in name:
             StructureList_copy.append(name)
     StructureList = StructureList_copy.copy()
+
+    # bring PTV70 and PTV56 forward
+    StructureList.remove("PTV70")
+    StructureList.remove("PTV56")
+    StructureList.insert(0, "PTV56")
+    StructureList.insert(0, "PTV70")
     for i in range(len(StructureList)):
         colorMap[StructureList[i]] = colors[i]
 
@@ -113,9 +121,7 @@ def DVH_plot():
         DoseRef = np.reshape(DoseRef, dimension)
 
         # normalize
-        percentile_value = 5
-        if patients[i] in ["003", "125"]:
-            percentile_value = 10
+        percentile_value = 10
         PrimaryPTVName = "PTV70"
         assert PrimaryPTVName in maskDict
         PrimaryMask = maskDict[PrimaryPTVName].astype(bool)
@@ -145,7 +151,7 @@ def DVH_plot():
             block.plot(StructDoseRef, y_axis, color=color, linewidth=2.0, linestyle="--")
             print(name)
 
-        block.set_xlim(0, 95)
+        block.set_xlim(0, doseShowMax)
         block.tick_params(axis="x", labelsize=16)
         block.tick_params(axis="y", labelsize=16)
         block.set_title("Patient {}".format(patients[i]), fontsize=20)
@@ -244,9 +250,7 @@ def DrawDoseWash():
         DoseRef[np.logical_not(BodyMask)] = 0
 
         # normalize
-        percentile_value = 5
-        if patient in ["003", "125"]:
-            percentile_value = 10
+        percentile_value = 10
         PrimaryStructureName = "PTV70"
         assert PrimaryStructureName in maskDict, "Structure {} not " \
             "found".format(PrimaryStructureName)
@@ -330,7 +334,7 @@ def FindCentroid2D(array):
 
 def DrawSlice(DensitySlice, DoseSlice, MasksSlice,
     BodySlice, height, width, file):
-    DoseThresh = 3.0
+    DoseThresh = 5.0
 
     MaskCentroid = FindCentroid2D(BodySlice)
     Dim0LowerBound = MaskCentroid[0] - height
@@ -378,7 +382,7 @@ def DrawSlice(DensitySlice, DoseSlice, MasksSlice,
                 initial = False
             else:
                 plt.plot(contour[:, 1], contour[:, 0], color=color, linewidth=4)
-    ax.imshow(DoseSlice, cmap="jet", vmin=0, vmax=95, alpha=(DoseSlice>DoseThresh)*0.3)
+    ax.imshow(DoseSlice, cmap="jet", vmin=0, vmax=doseShowMax, alpha=(DoseSlice>DoseThresh)*0.3)
     ax.axis("off")
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
     plt.savefig(file)
@@ -479,7 +483,7 @@ def colorBarGen():
     fig.patch.set_facecolor("black")
     ax.set_facecolor("black")
 
-    cax = ax.imshow(image, cmap="jet", vmin=0, vmax=75)
+    cax = ax.imshow(image, cmap="jet", vmin=0, vmax=doseShowMax)
     cbar = fig.colorbar(cax, ax=ax, orientation="vertical")
 
     ax.tick_params(axis="x", colors="white")
@@ -507,7 +511,7 @@ def colorBarGen():
 
 
 def concatVertical():
-    PatientsSelect = ["003", "132"]
+    PatientsSelect = ["009", "132"]
     collection = []
     for patient in PatientsSelect:
         figureFile = os.path.join(figureFolder, "DoseWashSample", "StackPatient{}.png".format(patient))
@@ -539,8 +543,9 @@ def concatVertical():
 
 
 if __name__ == "__main__":
-    # StructsInit()
-    # DVH_plot()
-    # DrawDoseWash()
-    # CoalesceFigures()
+    StructsInit()
+    DVH_plot()
+    DrawDoseWash()
+    colorBarGen()
+    CoalesceFigures()
     concatVertical()

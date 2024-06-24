@@ -8,9 +8,9 @@ import h5py
 from skimage import measure
 
 colors = list(mcolors.TABLEAU_COLORS.values()) + list(mcolors.XKCD_COLORS.values())
-RootFolder = "/data/qifan/projects/FastDoseWorkplace/TCIAAdd"
-PatientName = "002"
-planNo = 8
+RootFolder = "/data/qifan/FastDoseWorkplace/TCIAAdd"
+PatientName = "190"
+planNo = 1
 
 def drawDVH_opt():
     """
@@ -47,8 +47,8 @@ def drawDVH_opt():
     masks = getStructures(maskFile)
     masks = {a: b for a, b in masks}
     structures = list(masks.keys())
-    exclude = ["PTVMerge", "PTVSeg0", "PTVSeg1", "PTVSeg2", "PTVSeg3", "SKIN", "Trachea", "RingStructure"]
-    # exclude = ["PTVMerge", "PTVSeg0", "PTVSeg1", "PTVSeg2", "PTVSeg3", "SKIN"]
+    # exclude = ["PTVMerge", "PTVSeg0", "PTVSeg1", "PTVSeg2", "PTVSeg3", "SKIN", "Trachea", "RingStructure"]
+    exclude = ["PTVMerge", "PTVSeg0", "PTVSeg1", "PTVSeg2", "PTVSeg3", "SKIN", "RingStructures"]
     if True:
         exclude.append("RingStructure")
     structures = [a for a in structures if a not in exclude]
@@ -261,11 +261,8 @@ def drawSlice(densitySlice, doseSlice, maskSlice, outputFile):
             else:
                 plt.plot(contour[:, 1], contour[:, 0], color=color)
 
-    if True:
-        alpha = (doseSlice > 80) * 0.5
-    else:
-        alpha = (doseSlice > 5) * 0.5
-    vmax = 100
+    alpha = (doseSlice > 5) * 0.3
+    vmax = 80
 
     cax = ax.imshow(doseSlice, cmap="jet", vmin=0, vmax=vmax, alpha=alpha)
     cbar = fig.colorbar(cax, ax=ax)
@@ -404,8 +401,8 @@ def drawAllViews():
     
 
 if __name__ == "__main__":
-    # drawDVH_opt()
+    drawDVH_opt()
     # drawAxialSagittalCoronal()
     # drawDoseWash()
-    drawAllViews()
+    # drawAllViews()
     # drawDoseWashRef()

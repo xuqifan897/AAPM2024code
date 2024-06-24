@@ -1,12 +1,12 @@
 #!/bin/bash
 
-PatientName="002"
-exec="/data/qifan/projects/FastDose/build/bin/IMRT"
-dataFolder="/data/qifan/projects/FastDose/scripts"
-RootFolder="/data/qifan/projects/FastDoseWorkplace/TCIAAdd"
+PatientName="190"
+exec="/data/qifan/FastDose/build/bin/IMRT"
+dataFolder="/data/qifan/FastDose/scripts"
+RootFolder="/data/qifan/FastDoseWorkplace/TCIAAdd"
 FastDoseFolder="${RootFolder}/${PatientName}/FastDose"
 
-planNo=8
+planNo=1
 inputFolder="${FastDoseFolder}/prep_output"
 planFolder="${FastDoseFolder}/plan${planNo}"
 
@@ -19,13 +19,11 @@ fi
 
 outputFolders=""
 for i in 0 1 2 3; do
-    for j in 0 1; do
-        LocalOutputFolder="${FastDoseFolder}/dosecalcSeg${i}Split${j}"
-        if [ ! -d ${LocalOutputFolder} ]; then
-            echo "The folder \"${LocalOutputFolder}\" doesn't exist."
-        fi
-        outputFolders+=" ${LocalOutputFolder}"
-    done
+    LocalOutputFolder="${FastDoseFolder}/dosecalcSeg${i}"
+    if [ ! -d ${LocalOutputFolder} ]; then
+        echo "The folder \"${LocalOutputFolder}\" doesn't exist."
+    fi
+    outputFolders+=" ${LocalOutputFolder}"
 done
 
 dimFile="${inputFolder}/dimension.txt"
@@ -60,4 +58,4 @@ ${exec} \
     --EstNonZeroElementsPerMat 12000000 \
 | tee ${logFile}
 
-# tbreak /data/qifan/projects/FastDose/IMRTOpt/src/IMRTEigenLoad.cu:135
+# tbreak /data/qifan/FastDose/IMRTOpt/src/IMRTEigenLoad.cu:135

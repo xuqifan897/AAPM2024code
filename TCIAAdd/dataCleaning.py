@@ -7,11 +7,12 @@ import json
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from skimage import measure, transform
+from collections import OrderedDict
 
 colors = list(mcolors.TABLEAU_COLORS.values()) + list(mcolors.XKCD_COLORS.values())
 
 patients = ["002", "003", "009", "013", "070", "125", "132", "190"]
-RootFolder = "/data/qifan/projects/FastDoseWorkplace/TCIAAdd"
+RootFolder = "/data/qifan/FastDoseWorkplace/TCIAAdd"
 global StructsMetadata
 
 
@@ -420,31 +421,345 @@ def ShowPTVSeg():
 
 def beamListGen():
     """
-    Due to memory limit, we can not use the full set of beams
+    This function generates a set of beams for each patient
     """
-    samplingRatio = 0.2
-    nSplit = 2
-    beamListFullPath = os.path.join(RootFolder, "beamlist.txt")
-    with open(beamListFullPath, "r") as f:
-        lines = f.readlines()
-    lines = [a.replace("\n", "") for a in lines]
-    numBeams = len(lines)
-    numBeamsSelect = numBeams * samplingRatio
-    numBeamsSplit = int(numBeamsSelect / nSplit)
-    numSeg = 4
-    for i in range(numSeg):
-        random.shuffle(lines)
-        split1 = lines[:numBeamsSplit]
-        split1 = "\n".join(split1)
-        split1File = os.path.join(RootFolder, "beamlistSeg{}Split0.txt".format(i))
-        with open(split1File, "w") as f:
-            f.write(split1)
-        split2 = lines[numBeamsSplit: 2*numBeamsSplit]
-        split2 = "\n".join(split2)
-        split2File = os.path.join(RootFolder, "beamlistSeg{}Split1.txt".format(i))
-        with open(split2File, "w") as f:
-            f.write(split2)
-        print("Seg {}".format(i))
+    nCandidatesPerSeg = 200
+    fullBeamList = os.path.join(RootFolder, "beamlist_full.txt")
+    with open(fullBeamList, "r") as f:
+        fullBeamList = f.readlines()
+    for i in range(len(fullBeamList)):
+        entry = fullBeamList[i]
+        while entry[-1] in [" ", "\n"]:
+            entry = entry[:-1]
+        entry = entry.replace(" ", ", ")
+        entry = eval(entry)
+        # convert degree to radian
+        entry = np.array(entry) * np.pi / 180
+        fullBeamList[i] = entry
+    
+    for patient in patients:
+        patientFolder = os.path.join(RootFolder, patient)
+        dimension = os.path.join(patientFolder, "metadata.txt")
+        with open(dimension, "r") as f:
+            dimension = f.readline()
+        dimension = dimension.replace(" ", ", ")
+        dimension = eval(dimension)
+        
+        SKIN = os.path.join(patientFolder, "PlanMask", "SKIN.bin")
+        SKIN = np.fromfile(SKIN, dtype=np.uint8)
+        SKIN = np.reshape(SKIN, dimension)
+
+        # find the top and bottom slices
+        partialSKIN = np.any(SKIN, axis=(1, 2))
+        idxZ = [i for i in range(partialSKIN.size) if partialSKIN[i]]
+        idxZ_min = min(idxZ)
+        idxZ_max = max(idxZ)
+        bottomSlice = SKIN[idxZ_min, :, :]
+        topSlice = SKIN[idxZ_max, :, :]
+        
+        if True:
+            # to exclude all beams irradiating from the top of the head
+            radius = 30
+            center = (np.array(topSlice.shape) - 1) / 2
+            center = np.expand_dims(center, axis=(0, 1))
+            coordsShape = topSlice.shape + (2, )
+            coords = np.zeros(coordsShape)
+            coordsY = np.arange(topSlice.shape[0])
+            coordsY = np.expand_dims(coordsY, axis=(1))
+            coordsX = np.arange(topSlice.shape[1])
+            coordsX = np.expand_dims(coordsX, axis=(0))
+            coords[:, :, 0] = coordsY
+            coords[:, :, 1] = coordsX
+            diff = coords - center
+            norm = np.linalg.norm(diff, axis=2)
+            topSlice = norm < radius
+
+        # used for calculating the centroid of each PTV segment
+        coordsShape = dimension + (3, )
+        coords = np.zeros(coordsShape, dtype=float)
+        axis_z = np.arange(dimension[0])
+        axis_z = np.expand_dims(axis_z, axis=(1, 2))
+        axis_y = np.arange(dimension[1])
+        axis_y = np.expand_dims(axis_y, axis=(0, 2))
+        axis_x = np.arange(dimension[2])
+        axis_x = np.expand_dims(axis_x, axis=(0, 1))
+        coords[:, :, :, 0] = axis_z
+        coords[:, :, :, 1] = axis_y
+        coords[:, :, :, 2] = axis_x
+
+        # angle, orientation, 4 flags
+        indicator = []
+        directionOrg = np.array((0, 1, 0))
+        for i in range(len(fullBeamList)):
+            angle = fullBeamList[i]
+            directionNew = inverseRotateBeamAtOriginRHS(directionOrg, *angle)
+            indicator.append((angle, directionNew, np.zeros((4,), dtype=bool)))
+
+        for segIdx in range(4):
+            PTVSegMask = os.path.join(patientFolder, "PlanMask", "PTVSeg{}.bin".format(segIdx))
+            PTVSegMask = np.fromfile(PTVSegMask, dtype=np.uint8)
+            PTVSegMask = np.reshape(PTVSegMask, dimension)
+            PTVSegMask = np.expand_dims(PTVSegMask, axis=3)
+            nVoxels = np.sum(PTVSegMask)
+            centroid = coords * PTVSegMask
+            centroid = np.sum(centroid, axis=(0, 1, 2)) / nVoxels
+            # print("Patient {}, PTVSeg{}, centroid {}".format(patient, segIdx, centroid))
+
+            # for each beam, calculate the intersection of each beam to the bottom and top slice
+            for beamIdx in range(len(indicator)):
+                direction = indicator[beamIdx][1]
+
+                # if the absolute diff is too small, True
+                if np.abs(direction[0]) < 1e-4:
+                    indicator[beamIdx][2][segIdx] = True
+                    continue
+                
+                # judge on the bottom slice
+                factor = (idxZ_min - centroid[0]) / direction[0]
+                if factor <= 0:
+                    # we only consider the case where the factor <= 0, as the beam is one-directional
+                    intersectionPoint = centroid + factor * direction
+                    intersectionY = int(intersectionPoint[1])
+                    intersectionX = int(intersectionPoint[2])
+                    if (intersectionY < 0 or intersectionY >= dimension[1] or \
+                        intersectionX < 0 or intersectionX >= dimension[2]):
+                        indicator[beamIdx][2][segIdx] = True
+                    elif bottomSlice[intersectionY, intersectionX] == False:
+                        indicator[beamIdx][2][segIdx] = True
+
+                factor = (idxZ_max - centroid[0]) / direction[0]
+                if factor <= 0:
+                    intersectionPoint = centroid + factor * direction
+                    intersectionY = int(intersectionPoint[1])
+                    intersectionX = int(intersectionPoint[2])
+                    if (intersectionY < 0 or intersectionY >= dimension[1] or \
+                        intersectionX < 0 or intersectionX >= dimension[2]):
+                        indicator[beamIdx][2][segIdx] = True
+                    elif topSlice[intersectionY, intersectionX] == False:
+                        indicator[beamIdx][2][segIdx] = True
+
+        # we only take the angles that are valid for all PTV segments
+        valid = []
+        for i in range(len(indicator)):
+            angle_rad, direction, flags = indicator[i]
+            if np.all(flags):
+                angle_deg = angle_rad * 180 / np.pi
+            valid.append(angle_deg)
+        random.shuffle(valid)
+        for i in range(4):
+            localBeams = valid[i*nCandidatesPerSeg: (i+1)*nCandidatesPerSeg]
+            content = []
+            for entry in localBeams:
+                content.append("{:.4f} {:.4f} {:.4f}".format(*entry))
+            content = "\n".join(content)
+            file = os.path.join(patientFolder, "beamListSeg{}.txt".format(i))
+            with open(file, "w") as f:
+                f.write(content)
+            print(file)
+
+
+def rotateAroundAxisAtOriginRHS(p, axis, angle):
+    # p: the vector to rotate
+    # axis: the rotation axis
+    # angle: in rad. The angle to rotate
+    sint = np.sin(angle)
+    cost = np.cos(angle)
+    one_minus_cost = 1 - cost
+    p_dot_axis = np.dot(p, axis)
+    first_term_coeff = one_minus_cost * p_dot_axis
+    result = first_term_coeff * axis + \
+        cost * p + \
+        sint * np.cross(axis, p)
+    return result
+
+def inverseRotateBeamAtOriginRHS(vec, theta, phi, coll):
+    # convert BEV coords to PVCS coords
+    tmp = rotateAroundAxisAtOriginRHS(vec, np.array((0, 1, 0)), -(phi + coll))
+    sptr = -np.sin(phi)
+    cptr = np.cos(phi)
+    rotation_axis = np.array((sptr, 0, cptr))
+    result = rotateAroundAxisAtOriginRHS(tmp, rotation_axis, theta)
+    return result
+
+
+def testBeamList():
+    """
+    This function tests whether the beam lists generated above are valid
+    """
+    isoRes = 2.5
+    for patient in patients:
+        patientFolder = os.path.join(RootFolder, patient)
+        RTSTRUCT_file = os.path.join(patientFolder, "RTSTRUCT.nrrd")
+        seg, header = nrrd.read(RTSTRUCT_file)
+
+        # delete all mask - related entries
+        idx = 0
+        while True:
+            beginning = "Segment{}_".format(idx)
+            idx += 1
+            key = beginning + "Color"
+            if key not in header:
+                break
+            del header[key]
+            del header[beginning + "ColorAutoGenerated"]
+            del header[beginning + "Extent"]
+            del header[beginning + "ID"]
+            del header[beginning + "LabelValue"]
+            del header[beginning + "Layer"]
+            del header[beginning + "Name"]
+            del header[beginning + "NameAutoGenerated"]
+            del header[beginning + "Tags"]
+        
+        dimension = os.path.join(patientFolder, "metadata.txt")
+        with open(dimension, "r") as f:
+            dimension = f.readline()
+        dimension = dimension.replace(" ", ", ")
+        dimension = eval(dimension)
+        dimensionFlip = np.flip(dimension)
+
+        nStructures = 5  # SKIN and 4 sets of beams
+        header["sizes"][:] = [nStructures, *dimensionFlip]
+        header["space directions"][1, 0] = isoRes
+        header["space directions"][2, 1] = isoRes
+        header["space directions"][3, 2] = isoRes
+        header = list(header.items())
+        headerBegin = header[:8]
+        headerEnd = header[8:]
+
+
+        # initialize header
+        order = ["SKIN"] + ["PTVSeg{}".format(i) for i in range(4)]
+        globalExtent = "0 {} 0 {} 0 {}".format(*dimensionFlip)
+        headerMiddle = []
+        for idx, name in enumerate(order):
+            color = hex_to_rgb(colors[idx])
+            beginning = "Segment{}_".format(idx)
+            localList = []
+            localList.append((beginning + "Color", color))
+            localList.append((beginning + "ColorAutoGenerated", "1"))
+            localList.append((beginning + "Extent", globalExtent))
+            localList.append((beginning + "ID", name))
+            localList.append((beginning + "LabelValue", "1"))
+            localList.append((beginning + "Layer", str(idx)))
+            localList.append((beginning + "Name", name))
+            localList.append((beginning + "NameAutoGenerated", 1))
+            localList.append((beginning + "Tags", f"DicomRtImport.RoiNumber:{idx+1}|TerminologyEntry:Segmentation " \
+                "category and type - 3D Slicer General Anatomy list~SCT^85756007^Tissue~SCT^85756007^Tissue~^^~" \
+                "Anatomic codes - DICOM master list~^^~^^|"))
+            headerMiddle.append((beginning, localList))
+        headerMiddle.sort(key=lambda a: a[0])
+        middle_result = []
+        for _, localList in headerMiddle:
+            middle_result.extend(localList)
+        segHeaderNew = headerBegin + middle_result + headerEnd
+        segHeaderNew = OrderedDict(segHeaderNew)
+        if False:
+            print(segHeaderNew)
+            break
+
+        maskFolder = os.path.join(patientFolder, "PlanMask")
+        masks = {"SKIN": None, "PTVSeg0": None, "PTVSeg1": None,
+            "PTVSeg2": None, "PTVSeg3": None}
+        for name in masks:
+            file = os.path.join(maskFolder, name+".bin")
+            maskArray = np.fromfile(file, dtype=np.uint8)
+            maskArray = np.reshape(maskArray, dimension)
+            masks[name] = maskArray
+        
+        maskCentroidDict = {"PTVSeg{}".format(i): None for i in range(4)}
+        for name in maskCentroidDict:
+            maskArray = masks[name]
+            maskCentroidDict[name] = calcCentroid(maskArray)
+        
+        coordsShape = dimension + (3, )
+        coords = np.zeros(coordsShape, dtype=float)
+        axis_x = np.arange(dimension[0])
+        axis_x = np.expand_dims(axis_x, axis=(1, 2))
+        axis_y = np.arange(dimension[1])
+        axis_y = np.expand_dims(axis_y, axis=(0, 2))
+        axis_z = np.arange(dimension[2])
+        axis_z = np.expand_dims(axis_z, axis=(0, 1))
+        coords[:, :, :, 0] = axis_x
+        coords[:, :, :, 1] = axis_y
+        coords[:, :, :, 2] = axis_z
+
+        radius = 1
+        beamsDict = {}
+        for name, centroid in maskCentroidDict.items():
+            centroid = np.expand_dims(centroid, axis=(0, 1, 2))
+            coordsDiff = coords - centroid
+
+            idx = "".join((a for a in name if a.isdigit()))
+            beamList = os.path.join(patientFolder, "beamListSeg{}.txt".format(idx))
+            with open(beamList, "r") as f:
+                beamList = f.readlines()
+            
+            canvas = np.zeros(dimension, dtype=np.uint8)
+            radius = 1
+            for j in range(len(beamList)):
+                angle = beamList[j]
+                angle = angle.replace(" ", ", ")
+                angle = np.array(eval(angle))
+                angle *= np.pi / 180  # degree to rad
+                axisBEV = np.array((0, 1, 0))
+                axisPVCS = inverseRotateBeamAtOriginRHS(axisBEV, *angle)
+                axisPVCS = np.expand_dims(axisPVCS, axis=(0, 1, 2))
+
+                alongAxisProjection = np.sum(coordsDiff * axisPVCS, axis=3, keepdims=True)
+                perpendicular = coordsDiff - alongAxisProjection * axisPVCS
+
+                distance = np.linalg.norm(perpendicular, axis=3)
+                localMask = distance < radius
+
+                alongAxisProjection = np.squeeze(alongAxisProjection)
+                localMask = np.logical_and(localMask, alongAxisProjection < 0)
+                canvas = np.logical_or(canvas, localMask)
+                print("patient {}, PTVSeg{}, beam {}".format(patient, idx, j))
+            beamsDict[name] = canvas.astype(np.uint8)
+        
+        # add SKIN mask
+        beamsDict["SKIN"] = masks["SKIN"]
+        maskList = []
+        for key in order:
+            localMask = beamsDict[key]
+            localMask = np.transpose(localMask, axes=(2, 1, 0))
+            localMask = np.expand_dims(localMask, axis=0)
+            maskList.append(localMask)
+        segNew = np.concatenate(maskList, axis=0)
+        file = os.path.join(patientFolder, "beamViewTest.nrrd")
+        nrrd.write(file, segNew, segHeaderNew)
+        print(file)
+        break
+
+
+def hex_to_rgb(hex_color):
+    """Converts a color from hexadecimal format to RGB."""
+    hex_color = hex_color.lstrip('#')
+    result = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    result = np.array(result) / 255
+    result = "{} {} {}".format(*result)
+    return result
+
+
+def calcCentroid(mask):
+    mask = mask > 0
+    nVoxels = np.sum(mask)
+    shape = mask.shape
+
+    xWeight = np.arange(shape[0])
+    xWeight = np.expand_dims(xWeight, axis=(1, 2))
+    xCoord = np.sum(mask * xWeight) / nVoxels
+
+    yWeight = np.arange(shape[1])
+    yWeight = np.expand_dims(yWeight, axis=(0, 2))
+    yCoord = np.sum(mask * yWeight) / nVoxels
+
+    zWeight = np.arange(shape[2])
+    zWeight = np.expand_dims(zWeight, axis=(0, 1))
+    zCoord = np.sum(mask * zWeight) / nVoxels
+
+    result = np.array((xCoord, yCoord, zCoord))
+    return result
 
 
 def structsInfoGen():
@@ -509,8 +824,9 @@ if __name__ == "__main__":
     StructsExclude()
     # CheckData()
     # postCheck()
-    MaskTrim()
-    PTVSeg()
+    # MaskTrim()
+    # PTVSeg()
     # ShowPTVSeg()
     # beamListGen()
-    structsInfoGen()
+    testBeamList()
+    # structsInfoGen()

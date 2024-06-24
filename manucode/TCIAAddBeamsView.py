@@ -2,11 +2,12 @@ import os
 import numpy as np
 import nrrd
 from collections import OrderedDict
+import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from scipy.signal import convolve
 
 patients = ["002", "003", "009", "013", "070", "125", "132", "190"]
-RootFolder = "/data/qifan/projects/FastDoseWorkplace/TCIAAdd"
+RootFolder = "/data/qifan/FastDoseWorkplace/TCIAAdd"
 StructureList = []
 exclude = ["PTVMerge", "rind", "PTVSeg0", "PTVSeg1", "PTVSeg2", "PTVSeg3",
            "PTVMerge", "avoid", "GTV", "ptv54combo", "transvol70"]
@@ -216,24 +217,14 @@ def nrrdModify():
         break
 
 
-def genBeamList():
+def genBeamList(patient):
     beamList = []
     for i in range(4):
-        file0 = os.path.join(RootFolder, "beamlistSeg{}Split0.txt".format(i))
+        file0 = os.path.join(RootFolder, patient, "beamListSeg{}.txt".format(i))
         with open(file0, "r") as f:
             beams0 = f.readlines()
         for j in range(len(beams0)):
             line = beams0[j]
-            line = line.replace("\n", "")
-            line = line.replace(" ", ", ")
-            line = eval(line)
-            beamList.append((i, line))  # isocenter Idx, angles
-        
-        file1 = os.path.join(RootFolder, "beamlistSeg{}Split1.txt".format(i))
-        with open(file1, "r") as f:
-            beams1 = f.readlines()
-        for j in range(len(beams1)):
-            line = beams1[j]
             line = line.replace("\n", "")
             line = line.replace(" ", ", ")
             line = eval(line)
@@ -376,12 +367,12 @@ def nrrdGen_exp():
         header = OrderedDict(header)
         file = os.path.join(patientFolder, "RT_exp2.nrrd")
         nrrd.write(file, mask, header)
-        break
+        print(file)
 
 
 def nrrdGen():
-    beamList = genBeamList()
     for patient in patients:
+        beamList = genBeamList(patient)
         patientFolder = os.path.join(RootFolder, patient)
         templateFile = os.path.join(patientFolder, "RTSTRUCT.nrrd")
         seg, header = nrrd.read(templateFile)
@@ -395,7 +386,6 @@ def nrrdGen():
         resolution = header["space directions"]
         resolution = (resolution[1, 0], resolution[2, 1], resolution[3, 2])
         beamMask = genBeamMask(patient, beamList, PTVMaskMerge, resolution)
-        break
 
         # refine SKIN mask
         skinName = "SKIN"
@@ -463,8 +453,70 @@ def nrrdGen():
         break
 
 
+def groupBeamFigures():
+    """
+    After generating the plans with only valid candidate beams (i.e., 
+    those that did not intersect with the cut-off planes), we created the
+    segmentation .nrrd files and generated the beam view images. Here we
+    stitch those images into a single figure
+    """
+    figureFolder = "/data/qifan/AAPM2024/manufigures"
+    sourceFolder = os.path.join(figureFolder, "beamViewWhite")
+    targetWidth = 600
+    imageSet = []
+    for patient in patients:
+        patientImage = os.path.join(sourceFolder, "beamViewPatient{}.png".format(patient))
+        patientImage = plt.imread(patientImage)
+        widthOrg = patientImage.shape[1]
+        idxBegin = int((widthOrg - targetWidth) / 2)
+        if patient == "013":
+            idxBegin -= 40
+        patientImage = patientImage[:, idxBegin:idxBegin+targetWidth, :]
+        imageSet.append(patientImage)
+
+    imageShape = imageSet[0].shape
+    for i in range(1, len(imageSet)):
+        assert imageShape == imageSet[i].shape
+
+    numImagesPerRow = 3
+    numRows = int((len(imageSet) + numImagesPerRow - 1) / numImagesPerRow)
+    numImagesAppend = numImagesPerRow * numRows - len(imageSet)
+    imageAppend = np.ones(imageShape, dtype=np.float32)
+    imageSet.extend(numImagesAppend * [imageAppend])
+    
+    imageRows = []
+    for i in range(numRows):
+        localRow = imageSet[i*numImagesPerRow: (i+1)*numImagesPerRow]
+        localRow = np.concatenate(localRow, axis=1)
+        imageRows.append(localRow)
+    fullImage = np.concatenate(imageRows, axis=0)
+    imageFile = os.path.join(figureFolder, "beamViews.png")
+
+    singleImageHeight, singleImageWidth, channels = imageShape
+    if False:
+        plt.imsave(imageFile, fullImage)
+    if True:
+        imageHeight, imageWidth, channels = fullImage.shape
+        fig, ax = plt.subplots(figsize=(imageWidth / 100, imageHeight / 100), dpi=100)
+        ax.imshow(fullImage)
+        for i, patient in enumerate(patients):
+            text = "Patient{}".format(patient)
+            rowIdx = i // numImagesPerRow
+            colIdx = i % numImagesPerRow
+            rowDisp = rowIdx * singleImageWidth + 50
+            colDisp = colIdx * singleImageHeight + 30
+            ax.text(colDisp, rowDisp, text, fontsize=30, color="black")
+
+        ax.axis("off")
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        fig.savefig(imageFile)
+        plt.close(fig)
+        
+
+
 if __name__ == "__main__":
-    StructsInit()
+    # StructsInit()
     # nrrdModify()
     # nrrdGen_exp()
-    nrrdGen()
+    # nrrdGen()
+    groupBeamFigures()
