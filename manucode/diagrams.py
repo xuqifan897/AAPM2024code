@@ -2,7 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
-from matplotlib.patches import FancyArrowPatch
+from matplotlib.patches import FancyArrowPatch, Circle, Polygon
 import nrrd
 from scipy.interpolate import RegularGridInterpolator
 
@@ -531,12 +531,217 @@ def figMerge():
     ax.imshow(image)
     offset1 = 10
     offset2 = 40
-    fontsize = 20
+    fontsize = 40
     ax.text(offset1, offset2, "(a)", color="white", fontsize=fontsize)
     ax.text(512 + offset1, offset2, "(b)", color="white", fontsize=fontsize)
     ax.text(768 + offset1, offset2, "(c)", color="white", fontsize=fontsize)
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
     plt.savefig(imageFile)
+    plt.close(fig)
+    plt.clf()
+
+
+
+def parallelThreadArrangement():
+    """
+    This function draws the ray arrangements in the BEV coordinate systems
+    """
+    canvas = "/data/qifan/AAPM2024/manufigures/CCCSAhnesjo/densitySlice.png"
+    canvas = plt.imread(canvas)
+    assert canvas.shape == (100, 100, 4)
+    marginSize = 2
+    contentSize = 16
+    middleValue = int((marginSize + contentSize) / 2)
+    starting = 5
+    stride = marginSize + contentSize
+    for offset in range(starting, canvas.shape[0], stride):
+        canvas[offset: offset+marginSize, :, :] = 1
+        canvas[:, offset: offset+marginSize, :] = 1
+    
+    fig, ax = plt.subplots(figsize=(canvas.shape[0] / 10, canvas.shape[1] / 10), dpi=100)
+    ax.imshow(canvas)
+
+    greenColor = colors[0]
+    # Draw a central circle in each voxel
+    numCells = 5
+    
+    slope = - 5
+    point0_list = []
+    point1_list = []
+    for idx in range(numCells + 3):
+        pointCoord = np.array((starting + (idx - 1) * stride + marginSize - 1, starting + marginSize))
+        # calculate the starting index and the ending index
+        x0 = (0 - pointCoord[1]) / slope + pointCoord[0]
+        x1 = (canvas.shape[0] - pointCoord[1]) / slope + pointCoord[0]
+        point0 = np.array((x0, -1))
+        point1 = np.array((x1, canvas.shape[0]))
+        point0_list.append(point0)
+        point1_list.append(point1)
+    for idx in range(numCells + 2):
+        localVertices = [point0_list[idx], point1_list[idx], point1_list[idx+1], 
+            point0_list[idx+1], point0_list[idx]]
+        polygon = Polygon(localVertices, closed=True, facecolor=colors[idx], edgecolor=None, alpha=0.4)
+        ax.add_patch(polygon)
+
+    
+    # draw memory order info
+    point0 = np.array((1, starting + middleValue))
+    point1 = np.array((canvas.shape[1] - 1, starting + middleValue))
+    nMiddlePoints = 6
+    displacement = np.array((1, 0))
+    for idx in range(nMiddlePoints):
+        pointStart = point0 + (starting + (idx - 1) * stride + 2 + middleValue) * displacement
+        pointEnd = point0 + (starting + idx * stride - 3 + middleValue) * displacement
+        arrow = FancyArrowPatch(pointStart, pointEnd, arrowstyle="->", mutation_scale=30,
+            linewidth=2)
+        ax.add_patch(arrow)
+    
+    point2 = np.array((0, starting + middleValue + stride))
+    point1_ = point1 + 0.1 * (point2 - point1) + np.array((0, 3))
+    point2_ = point1 + 0.9 * (point2 - point1) + np.array((0, -3))
+    arrow = FancyArrowPatch(point1_, point2_, arrowstyle="->", mutation_scale=60,
+        linewidth=2, linestyle=(0, (10, 5)))
+    ax.add_patch(arrow)
+
+    for idx in range(nMiddlePoints):
+        pointStart = point2 + (starting + (idx - 1) * stride + 2 + middleValue) * displacement
+        pointEnd = point2 + (starting + idx * stride - 3 + middleValue) * displacement
+        arrow = FancyArrowPatch(pointStart, pointEnd, arrowstyle="->", mutation_scale=30,
+            linewidth=2)
+        ax.add_patch(arrow)
+
+    ax.set_xlim(0, canvas.shape[1]-1)
+    ax.set_ylim(0, canvas.shape[0]-1)
+    ax.invert_yaxis()
+
+    for idx1 in range(numCells + 2):
+        offset1 = starting + (idx1 - 1) * stride + middleValue
+        for idx2 in range(numCells + 2):
+            offset2 = starting + (idx2 - 1) * stride + middleValue
+            circle = Circle((offset1, offset2), 1, edgecolor="black", facecolor=greenColor)
+            ax.add_patch(circle)
+
+    ax.axis("off")
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    imagePath = os.path.join(topicFolder, "ChenCCCS1.png")
+    plt.savefig(imagePath)
+    plt.close(fig)
+    plt.clf()
+
+
+def parallelThreadArrangement1():
+    """
+    This time, transverse dominant
+    """
+    canvas = "/data/qifan/AAPM2024/manufigures/CCCSAhnesjo/densitySlice.png"
+    canvas = plt.imread(canvas)
+    assert canvas.shape == (100, 100, 4)
+    marginSize = 2
+    contentSize = 16
+    middleValue = int((marginSize + contentSize) / 2)
+    starting = 5
+    stride = marginSize + contentSize
+    for offset in range(starting, canvas.shape[0], stride):
+        canvas[offset: offset+marginSize, :, :] = 1
+        canvas[:, offset: offset+marginSize, :] = 1
+    fig, ax = plt.subplots(figsize=(canvas.shape[0] / 10, canvas.shape[1] / 10), dpi=100)
+    ax.imshow(canvas)
+
+    numCells = 5
+    slope = 5
+    point0_list = []
+    point1_list = []
+    for idx in range(numCells + 3):
+        pointCoord = np.array((starting + (idx - 1) * stride + marginSize - 1, starting + marginSize))
+        # calculate the starting index and the ending index
+        x0 = (0 - pointCoord[1]) / slope + pointCoord[0]
+        x1 = (canvas.shape[0] - pointCoord[1]) / slope + pointCoord[0]
+        point0 = np.array((-1, x0))
+        point1 = np.array((canvas.shape[1], x1))
+        point0_list.append(point0)
+        point1_list.append(point1)
+    for idx in range(numCells + 2):
+        localVertices = [point0_list[idx], point1_list[idx], point1_list[idx+1], 
+            point0_list[idx+1], point0_list[idx]]
+        polygon = Polygon(localVertices, closed=True, facecolor=colors[idx], edgecolor=None, alpha=0.4)
+        ax.add_patch(polygon)
+
+    
+    # draw memory order info
+    point0 = np.array((1, starting + middleValue))
+    point1 = np.array((canvas.shape[1] - 1, starting + middleValue))
+    nMiddlePoints = 6
+    displacement = np.array((1, 0))
+    for idx in range(nMiddlePoints):
+        pointStart = point0 + (starting + (idx - 1) * stride + 2 + middleValue) * displacement
+        pointEnd = point0 + (starting + idx * stride - 3 + middleValue) * displacement
+        pointStart = np.flip(pointStart)
+        pointEnd = np.flip(pointEnd)
+        arrow = FancyArrowPatch(pointStart, pointEnd, arrowstyle="->", mutation_scale=30,
+            linewidth=2)
+        ax.add_patch(arrow)
+    
+    point2 = np.array((0, starting + middleValue + stride))
+    point1_ = point1 + 0.1 * (point2 - point1) + np.array((0, 3))
+    point2_ = point1 + 0.9 * (point2 - point1) + np.array((0, -3))
+    point1_ = np.flip(point1_)
+    point2_ = np.flip(point2_)
+    arrow = FancyArrowPatch(point1_, point2_, arrowstyle="->", mutation_scale=60,
+        linewidth=2, linestyle=(0, (10, 5)))
+    ax.add_patch(arrow)
+
+    for idx in range(nMiddlePoints):
+        pointStart = point2 + (starting + (idx - 1) * stride + 2 + middleValue) * displacement
+        pointEnd = point2 + (starting + idx * stride - 3 + middleValue) * displacement
+        pointStart = np.flip(pointStart)
+        pointEnd = np.flip(pointEnd)
+        arrow = FancyArrowPatch(pointStart, pointEnd, arrowstyle="->", mutation_scale=30,
+            linewidth=2)
+        ax.add_patch(arrow)
+
+    for idx1 in range(numCells + 2):
+        offset1 = starting + (idx1 - 1) * stride + middleValue
+        for idx2 in range(numCells + 2):
+            offset2 = starting + (idx2 - 1) * stride + middleValue
+            circle = Circle((offset1, offset2), 1, edgecolor="black", facecolor=colors[0])
+            ax.add_patch(circle)
+    
+    ax.axis("off")
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    figurePath = os.path.join(topicFolder, "ChenCCCS2.png")
+    plt.savefig(figurePath)
+    plt.close(fig)
+    plt.clf()
+
+
+def coaleaseThreadArrangement():
+    figure1 = os.path.join(topicFolder, "ChenCCCS1.png")
+    figure1 = plt.imread(figure1)
+    figure2 = os.path.join(topicFolder, "ChenCCCS2.png")
+    figure2 = plt.imread(figure2)
+
+    shape = (1000, 1000, 4)
+    assert figure1.shape == shape and figure2.shape == shape
+    gapSize = 100
+    gap = np.ones((shape[0], gapSize, shape[2]), dtype=figure1.dtype)
+    result = np.concatenate((figure1, gap, figure2), axis=1)
+    
+    bottomSize = (100, result.shape[1], result.shape[2])
+    bottom = np.ones(bottomSize, dtype=result.dtype)
+    result = np.concatenate((result, bottom), axis=0)
+
+    shapeNew = result.shape
+    fig, ax = plt.subplots(figsize=(shapeNew[1]/100, shapeNew[0]/100), dpi=100)
+    ax.imshow(result)
+    textColor="black"
+    offset_x = shape[1] / 2
+    offset_y = shape[0] + bottomSize[0] / 2
+    ax.text(offset_x, offset_y, "(a)", fontsize=60, color=textColor, ha="center", va="center")
+    ax.text(offset_x + shape[1] + gapSize, offset_y, "(b)", fontsize=60, color=textColor, ha="center", va="center")
+    ax.axis("off")
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    figurePath = os.path.join(topicFolder, "memoryOrder.png")
+    plt.savefig(figurePath)
     plt.close(fig)
     plt.clf()
 
@@ -547,4 +752,7 @@ if __name__ == "__main__":
     # DensityBEV()
     # TermaBEV()
     # TermaPVCS()
-    figMerge()
+    # figMerge()
+    # parallelThreadArrangement()
+    # parallelThreadArrangement1()
+    coaleaseThreadArrangement()
