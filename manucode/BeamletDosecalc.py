@@ -832,15 +832,15 @@ def finalGroup():
             color=fontcolor, ha="left", va="top")
     
     coords_b = (horizontalOffset, verticalOffset + sliceHeightCrop + verticalGap)
-    ax.text(coords_b[0], coords_b[1], "(b)", fontsize=fontsize,
+    ax.text(coords_b[0], coords_b[1], "(d)", fontsize=fontsize,
             color=fontcolor, ha="left", va="top")
     
     coords_c = (horizontalOffset + columnOne.shape[1] + horizontalGap.shape[1], verticalOffset)
-    ax.text(coords_c[0], coords_c[1], "(c)", fontsize=fontsize,
+    ax.text(coords_c[0], coords_c[1], "(b)", fontsize=fontsize,
             color=fontcolor, ha="left", va="top")
     
     coords_d = (coords_c[0] + BEVDensity.shape[1] + horizontalGap.shape[1], verticalOffset)
-    ax.text(coords_d[0], coords_d[1], "(d)", fontsize=fontsize,
+    ax.text(coords_d[0], coords_d[1], "(c)", fontsize=fontsize,
             color=fontcolor, ha="left", va="top")
 
     coords_e = (coords_d[0] + rayPlotsBEV.shape[1] + horizontalGap.shape[1], verticalOffset)
