@@ -8,8 +8,8 @@ from PIL import Image, ImageDraw, ImageFont
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-resultFolder = "/data/qifan/FastDoseWorkplace/TCIAAdd"
-figureFolder = "/data/qifan/AAPM2024/manufigures"
+resultFolder = "/data/qifan/projects/FastDoseWorkplace/TCIAAdd"
+figureFolder = "/data/qifan/projects/AAPM2024/manufigures"
 patients = ["002", "003", "009", "013", "070", "125", "132", "190"]
 
 StructureList = []
@@ -182,7 +182,7 @@ def DrawDoseWash():
     AxialWidth = 80
     CoronalWidth = 80
     SagittalWidth = 60
-    sliceFolder = os.path.join(figureFolder, "DoseWashSample")
+    sliceFolder = os.path.join(figureFolder, "DoseWashSampleCorrect")
     if not os.path.isdir(sliceFolder):
         os.mkdir(sliceFolder)
     halfCropSize = 50
@@ -199,6 +199,7 @@ def DrawDoseWash():
     }
 
     for i, patient in enumerate(patients):
+        patientFolderCorrect = os.path.join(resultFolder, "plansAngleCorrect", patient)
         patientFolder = os.path.join(resultFolder, patient)
         dimensionFile = os.path.join(patientFolder,
             "FastDose", "prep_output", "dimension.txt")
@@ -238,7 +239,7 @@ def DrawDoseWash():
         del maskDict[PTVMerge]
 
         # load FastDose result
-        DoseExpFile = os.path.join(patientFolder, "FastDose", "plan1", "dose.bin")
+        DoseExpFile = os.path.join(patientFolderCorrect, "FastDose", "plan1", "dose.bin")
         DoseExp = np.fromfile(DoseExpFile, dtype=np.float32)
         DoseExp = np.reshape(DoseExp, dimension)
         DoseExp[np.logical_not(BodyMask)] = 0
@@ -394,13 +395,13 @@ def CoalesceFigures():
     """
     This function groups multiple figures into one figure
     """
-    sliceFolder = os.path.join(figureFolder, "DoseWashSample")
+    sliceFolder = os.path.join(figureFolder, "DoseWashSampleCorrect")
     directionList = [("Axial", 1600), ("Sagittal", 1600), ("Coronal", 1600)]
     height = 1600
     widthTotal = 0
     for direction, width in directionList:
         widthTotal += width
-    
+
     for patient in patients:
         collectionExp = []
         for direction, width in directionList:
@@ -411,17 +412,7 @@ def CoalesceFigures():
             image = TrimPadding(image, height, width)
             collectionExp.append(image)
         imageExp = np.concatenate(collectionExp, axis=1)
-        imageExp = imageExp[:, :, :3].copy()
-        imageExp = (imageExp * 255).astype(np.uint8)
-        imageExp = Image.fromarray(imageExp)
-        draw = ImageDraw.Draw(imageExp)
-        text = "Patient{} Ours".format(patient)
-        position = (10, 10)
-        color = (255, 255, 255)
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 90)
-        draw.text(position, text, fill=color, font=font)
-        imageExp = np.array(imageExp)
-
+        
         collectionRef = []
         for direction, width in directionList:
             figureFile = os.path.join(sliceFolder, "patient{}Ref{}.png".format(patient, direction))
@@ -431,18 +422,12 @@ def CoalesceFigures():
             image = TrimPadding(image, height, width)
             collectionRef.append(image)
         imageRef = np.concatenate(collectionRef, axis=1)
-        imageRef = imageRef[:, :, :3].copy()
-        imageRef = (imageRef * 255).astype(np.uint8)
-        imageRef = Image.fromarray(imageRef)
-        draw = ImageDraw.Draw(imageRef)
-        text = "Patient{} Baseline".format(patient)
-        draw.text(position, text, fill=color, font=font)
-        imageRef = np.array(imageRef)
 
-        patientImage = np.concatenate((imageExp, imageRef), axis=0)
+        imagePatient = np.concatenate((imageExp, imageRef), axis=0)
         figureFile = os.path.join(sliceFolder, "StackPatient{}.png".format(patient))
-        plt.imsave(figureFile, patientImage)
+        plt.imsave(figureFile, imagePatient)
         print(figureFile)
+
 
 
 def TrimPadding(image, height, width):
@@ -511,41 +496,48 @@ def colorBarGen():
 
 
 def concatVertical():
-    PatientsSelect = ["009", "132"]
+    PatientsSelect = ["009", "013"]
     collection = []
     for patient in PatientsSelect:
-        figureFile = os.path.join(figureFolder, "DoseWashSample", "StackPatient{}.png".format(patient))
+        figureFile = os.path.join(figureFolder, "DoseWashSampleCorrect", "StackPatient{}.png".format(patient))
         figure = plt.imread(figureFile)
         collection.append(figure)
     image = np.concatenate(collection, axis=0)
-    image = image[:, :, :3]
-    image = (255 * image).astype(np.uint8)
 
-    ColorBar = colorBarGen()
-    ColorBar = ColorBar / 255
-    factor = 5
-    shapeNew = (ColorBar.shape[0] * factor, ColorBar.shape[1] * factor, 3)
-    ColorBar = transform.resize(ColorBar, shapeNew)
-    ColorBar = (ColorBar * 255).astype(np.uint8)
-    ColorBarHeight = ColorBar.shape[0]
-    Margin = int((image.shape[0] - ColorBarHeight)/2)
-    Canvas = np.zeros((image.shape[0], ColorBar.shape[1], 3), dtype=np.uint8)
-    Canvas[Margin:Margin + ColorBarHeight, :, :] = ColorBar
+    colorBar = colorBarGen()
+    enlargeFactor = 5
+    colorBarShape = np.array((colorBar.shape[:2])) * enlargeFactor
+    colorBar = transform.resize(colorBar, colorBarShape)
+    targetHeight = image.shape[0]
+    colorBarEnlarge = np.zeros((targetHeight, colorBar.shape[1], 4), dtype=colorBar.dtype)
+    colorBarEnlarge[:, :, -1] = 1.0
+    offset = int((targetHeight - colorBar.shape[0]) / 2)
+    colorBarEnlarge[offset: offset + colorBar.shape[0], :, :3] = colorBar
+    image = np.concatenate((image, colorBarEnlarge), axis=1)
 
-    image = np.concatenate((image, Canvas), axis=1)
-    globalImagePath = os.path.join(figureFolder, "DoseWashComp.png")
-    plt.imsave(globalImagePath, image)
-    print(globalImagePath)
-    # globalImagePath = os.path.join(figureFolder, "DoseWashComp.eps")
-    # plt.imsave(globalImagePath, image)
-    # print(globalImagePath)
-    # plt.clf()
+    singleImageHeight = int(figure.shape[0] / 2)
+    groups = ["Ours", "Baseline"]
+    patientNames = ["Patient{}".format(a) for a in PatientsSelect]
+    fig, ax = plt.subplots(figsize=(image.shape[1]/100, image.shape[0]/100), dpi=100)
+    ax.imshow(image)
+    nRows = 4
+    for i in range(nRows):
+        patientName = patientNames[i // 2]
+        groupName = groups[i % 2]
+        text = patientName + "\n" + groupName
+        ax.text(0, singleImageHeight * i, text, color="white", ha="left", va="top", fontsize=90)
+    ax.axis("off")
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    targetFile = os.path.join(figureFolder, "DoseWashCompCorrect.png")
+    plt.savefig(targetFile)
+    plt.close(fig)
+    plt.clf()
 
 
 if __name__ == "__main__":
     StructsInit()
-    DVH_plot()
-    DrawDoseWash()
-    colorBarGen()
-    CoalesceFigures()
+    # DVH_plot()
+    # DrawDoseWash()
+    # colorBarGen()
+    # CoalesceFigures()
     concatVertical()

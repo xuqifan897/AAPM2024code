@@ -4,7 +4,7 @@ import nrrd
 from collections import OrderedDict
 import matplotlib.colors as mcolors
 
-rootFolder = "/data/qifan/FastDoseWorkplace/TCIAAdd"
+rootFolder = "/data/qifan/projects/FastDoseWorkplace/TCIAAdd"
 patients = ["002", "003", "009", "013", "070", "125", "132", "190"]
 StructureList = []
 exclude = ["PTVMerge", "rind", "PTVSeg0", "PTVSeg1", "PTVSeg2", "PTVSeg3",

@@ -8,7 +8,7 @@ import scipy.io
 
 resultFolder = "/data/qifan/projects/FastDoseWorkplace/Pancreas"
 numPatients = 5
-ManuFiguresFolder = "/data/qifan/projects/AAPM2024/manufigures"
+manuFiguresFolder = "/data/qifan/projects/AAPM2024/manufigures"
 
 StructureList = []
 colorMap = {}
@@ -110,9 +110,9 @@ def DVH_plot():
             rotation='vertical', fontsize=16)
     
     plt.tight_layout()
-    figureFile = os.path.join(ManuFiguresFolder, "FastDosePancreas.png")
+    figureFile = os.path.join(manuFiguresFolder, "FastDosePancreas.png")
     plt.savefig(figureFile)
-    figureFile = os.path.join(ManuFiguresFolder, "FastDosePancreas.eps")
+    figureFile = os.path.join(manuFiguresFolder, "FastDosePancreas.eps")
     plt.savefig(figureFile)
     plt.close(fig)
     plt.clf()
@@ -209,9 +209,9 @@ def GridFigure():
     legendBlock.legend(handles, labels, loc="center", ncol=2, fontsize=16)
     plt.tight_layout()
 
-    figureFile = os.path.join(ManuFiguresFolder, "FastDosePancreas.png")
+    figureFile = os.path.join(manuFiguresFolder, "FastDosePancreas.png")
     plt.savefig(figureFile)
-    figureFile = os.path.join(ManuFiguresFolder, "FastDosePancreas.eps")
+    figureFile = os.path.join(manuFiguresFolder, "FastDosePancreas.eps")
     plt.savefig(figureFile)
     plt.close(fig)
     plt.clf()

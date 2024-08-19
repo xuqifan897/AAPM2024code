@@ -1,11 +1,11 @@
 #!/bin/bash
 
-exec="/data/qifan/FastDose/build/bin/IMRT"
-dataFolder="/data/qifan/FastDose/scripts"
-rootFolder="/data/qifan/FastDoseWorkplace/Pancreas"
+exec="/data/qifan/projects/FastDose/build/bin/IMRT"
+dataFolder="/data/qifan/projects/FastDose/scripts"
+rootFolder="/data/qifan/projects/FastDoseWorkplace/Pancreas"
 
 # for ((i=1; i<=5; i++)); do
-for i in 1; do
+for i in 2 3 4 5; do
     expFolder="${rootFolder}/Patient00${i}/FastDoseCorrect"
     planFolder="${expFolder}/plan1"
     if [ ! -d ${planFolder} ]; then

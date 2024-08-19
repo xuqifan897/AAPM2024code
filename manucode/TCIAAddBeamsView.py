@@ -460,16 +460,16 @@ def groupBeamFigures():
     segmentation .nrrd files and generated the beam view images. Here we
     stitch those images into a single figure
     """
-    figureFolder = "/data/qifan/AAPM2024/manufigures"
-    sourceFolder = os.path.join(figureFolder, "beamViewWhite")
+    figureFolder = "/data/qifan/projects/AAPM2024/manufigures"
+    sourceFolder = os.path.join(figureFolder, "beamViewHNCorrect")
     targetWidth = 600
     imageSet = []
     for patient in patients:
-        patientImage = os.path.join(sourceFolder, "beamViewPatient{}.png".format(patient))
+        patientImage = os.path.join(sourceFolder, "beamView{}.png".format(patient))
         patientImage = plt.imread(patientImage)
         widthOrg = patientImage.shape[1]
         idxBegin = int((widthOrg - targetWidth) / 2)
-        if patient == "013":
+        if patient == "132":
             idxBegin -= 40
         patientImage = patientImage[:, idxBegin:idxBegin+targetWidth, :]
         imageSet.append(patientImage)
@@ -490,7 +490,7 @@ def groupBeamFigures():
         localRow = np.concatenate(localRow, axis=1)
         imageRows.append(localRow)
     fullImage = np.concatenate(imageRows, axis=0)
-    imageFile = os.path.join(figureFolder, "beamViews.png")
+    imageFile = os.path.join(figureFolder, "beamViewsCorrect.png")
 
     singleImageHeight, singleImageWidth, channels = imageShape
     if False:
@@ -503,8 +503,8 @@ def groupBeamFigures():
             text = "Patient{}".format(patient)
             rowIdx = i // numImagesPerRow
             colIdx = i % numImagesPerRow
-            rowDisp = rowIdx * singleImageWidth + 50
-            colDisp = colIdx * singleImageHeight + 30
+            rowDisp = rowIdx * singleImageHeight + 50
+            colDisp = colIdx * singleImageWidth + 30
             ax.text(colDisp, rowDisp, text, fontsize=30, color="black")
 
         ax.axis("off")

@@ -2,9 +2,10 @@
 import os
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
+import random
 
-rootFolder = "/data/qifan/FastDoseWorkplace/Pancreas"
-beamListFullPath = "/data/qifan/FastDoseWorkplace/TCIAAdd/beamlist_full.txt"
+rootFolder = "/data/qifan/projects/FastDoseWorkplace/Pancreas"
+beamListFullPath = "/data/qifan/projects/FastDoseWorkplace/TCIAAdd/beamlist_full.txt"
 numPatients = 5
 
 
@@ -58,6 +59,7 @@ def beamListGen():
 
         beamListSelect = []
         for line in beamListFull:
+            lineOrg = line
             line = line.replace(" ", ", ")
             angle = eval(line)
             axisBEV = np.array((0, 1, 0))
@@ -69,7 +71,7 @@ def beamListGen():
                 point = point[1:]
                 value = upperSlice(point)
                 if value < eps:
-                    beamListSelect.append(line)
+                    beamListSelect.append(lineOrg)
                 else:
                     # print(direction)
                     pass
@@ -79,13 +81,19 @@ def beamListGen():
                 point = point[1:]
                 value = lowerSlice(point)
                 if value < eps:
-                    beamListSelect.append(line)
+                    beamListSelect.append(lineOrg)
                 else:
                     # print(direction)
                     pass
             elif direction[0] == 0:
-                beamListSelect.append(line)
+                beamListSelect.append(lineOrg)
         print(len(beamListSelect), len(beamListFull), "\n")
+
+        # reduce the number of valid beams by half
+        nBeamsWeWant = len(beamListSelect)
+        nBeamsWeWant = int(nBeamsWeWant / 2)
+        random.shuffle(beamListSelect)
+        beamListSelect = beamListSelect[:nBeamsWeWant]
         
         # split beamListSelect into 4 subsets
         beamListFullText = "".join(beamListSelect)
