@@ -295,6 +295,40 @@ def dataGen():
         print("\n")
 
 
+def refDoseGen():
+    targetFolder = "/data/qifan/projects/FastDoseWorkplace/Pancreas"
+    sourceRoot = "/mnt/shengdata1/qifan/Pancreas"
+    sourceDOSE = os.path.join(sourceRoot, "DOSE")
+    sourceCT = os.path.join(sourceRoot, "CT")
+    numPatients = 5
+    target_resolution = 2.5
+
+    for i in range(numPatients):
+        patientTargetFolder = os.path.join(targetFolder, "Patient{:03d}".format(i+1))
+        doseDataset = os.path.join(sourceDOSE, "Pancreas_{:03d}_0001.nii.gz".format(i+1))
+        doseDataset = nib.load(doseDataset)
+        doseArray = doseDataset.get_fdata()  # (x, y, z)
+        doseVoxelSize = doseDataset.header.get_zooms()  # (x, y, z)
+
+        ctDataset = os.path.join(sourceCT, "Pancreas_{:03d}_0000.nii.gz".format(i+1))
+        ctDataset = nib.load(ctDataset)
+        ctArray = ctDataset.get_fdata()
+        ctVoxelSize = ctDataset.header.get_zooms()
+        assert np.linalg.norm(np.array(doseVoxelSize) - np.array(ctVoxelSize)) < 1e-4
+        assert doseArray.shape == ctArray.shape
+        
+        doseArray = np.transpose(doseArray, axes=(2, 1, 0))  # (z, y, x)
+        voxelSize = np.flip(doseVoxelSize)   # (z, y, x)
+        size_org = np.array(doseArray.shape) * voxelSize
+        dim_new = size_org / target_resolution
+        dim_new = dim_new.astype(int)
+        doseArray = transform.resize(doseArray, dim_new).astype(np.float32)
+        
+        doseFile = os.path.join(patientTargetFolder, "doseRef.bin")
+        doseArray.tofile(doseFile)
+        print(doseFile)
+
+
 def generate_body_mask():
     targetFolder = "/data/qifan/projects/FastDoseWorkplace/Pancreas"
     sourceRoot = "/mnt/shengdata1/qifan/Pancreas"
@@ -390,6 +424,8 @@ def viewShape():
 def viewTotalMask():
     rootFolder = "/data/qifan/projects/FastDoseWorkplace/Pancreas"
     numPatients = 5
+    targetDose = 20
+    vmaxShow = 25
     shapes = [
         [160, 220, 220],
         [182, 200, 200],
@@ -420,6 +456,15 @@ def viewTotalMask():
         densityArray = np.fromfile(densityFile, dtype=np.uint16)
         densityArray = np.reshape(densityArray, shape)
 
+        doseFile = os.path.join(patientFolder, "doseRef.bin")
+        doseArray = np.fromfile(doseFile, dtype=np.float32)
+        doseArray = np.reshape(doseArray, shape)
+        # normalize
+        PTVMask = structures[0][1].astype(bool)
+        ptvDose = doseArray[PTVMask]
+        doseThresh = np.percentile(ptvDose, 10)
+        doseArray *= targetDose / doseThresh
+
         viewFolder = os.path.join(patientFolder, "view")
         if not os.path.isdir(viewFolder):
             os.mkdir(viewFolder)
@@ -427,8 +472,10 @@ def viewTotalMask():
         nSlices = shape[0]
         for j in range(nSlices):
             CTSlice = densityArray[j, :, :]
+            doseSlice = doseArray[j, :, :]
             plt.figure(figsize=(10, 6))
             plt.imshow(CTSlice, cmap="gray")
+            plt.imshow(doseSlice, cmap="jet", vmin=0, vmax=vmaxShow, alpha=(doseSlice>1)*0.3)
             for k, entry in enumerate(structures):
                 name, array = entry
                 color = colors[k]
@@ -442,6 +489,8 @@ def viewTotalMask():
                     else:
                         plt.plot(contour[:, 1], contour[:, 0], color=color)
             plt.legend(loc="upper right", bbox_to_anchor=(1.05, 1))
+            plt.colorbar()
+            plt.tight_layout()
             file = os.path.join(viewFolder, "{:03d}.png".format(j))
             plt.savefig(file)
             plt.clf()
@@ -474,8 +523,9 @@ def gen_structures_file():
 if __name__ == "__main__":
     # RTview()
     # totalSegView()
-    dataGen()
+    # dataGen()
+    # refDoseGen()
     # generate_body_mask()
     # viewShape()
-    # viewTotalMask()
+    viewTotalMask()
     # gen_structures_file()

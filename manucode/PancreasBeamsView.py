@@ -357,16 +357,18 @@ def beamViewPancreasGroupCorrect():
     canvasShape = canvas.shape
     fig, ax = plt.subplots(figsize=(canvasShape[1]/100, canvasShape[0]/100))
     ax.imshow(canvas)
+    verticalDisplacement = 100
+    horizontalDisplacement = 30
     for i in range(numPatients):
         rowIdx = i // rowSize
         colIdx = i % rowSize
-        rowOffset = rowIdx * imageShape[0] * 2 + 100
-        colOffset = colIdx * imageShape[1] + 30
+        rowOffset = rowIdx * imageShape[0] * 2 + verticalDisplacement
+        colOffset = colIdx * imageShape[1] + horizontalDisplacement
         text = "Patient{:03d}\nOurs".format(i+1)
         ax.text(colOffset, rowOffset, text, fontsize=30, color="black")
 
-        rowOffset = (rowIdx * 2 + 1) * imageShape[0] + 50
-        colOffset = colIdx * imageShape[1] + 30
+        rowOffset = (rowIdx * 2 + 1) * imageShape[0] + verticalDisplacement
+        colOffset = colIdx * imageShape[1] + horizontalDisplacement
         text = "Patient{:03d}\nBaseline".format(i+1)
         ax.text(colOffset, rowOffset, text, fontsize=30, color="black")
 

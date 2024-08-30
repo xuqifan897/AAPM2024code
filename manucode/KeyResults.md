@@ -39,14 +39,14 @@ Average speedup: 11.66
 ## dose calculation time
 | Case \ Group | Ours | Baseline | Speedup |
 |-|-|-|-|
-| Patient001 | 1:11.703 | 21:31.860 | 18.017 |
-| Patient002 | 0:51.962 | 9:52.758 | 11.408 |
-| Patient003 | 1:13.534 | 13:58.175 | 11.398 |
-| Patient004 | 1:14.604 | 16:34.158 | 13.326 |
-| Patient005 | 0:52.176 | 12:11.144 | 14.013 |
-Average speedup: 13.63
+| Patient001 | 1:11.7 | 21:31.9 | 18.017 |
+| Patient002 | 0:52.0 | 9:52.8 | 11.408 |
+| Patient003 | 1:13.5 | 13:58.2 | 11.398 |
+| Patient004 | 1:14.6 | 16:34.2 | 13.326 |
+| Patient005 | 0:52.2 | 12:11.1 | 14.013 |
+| Average | 1:04.8 | 14:49.6 | 13.632 |
 
-## optimization time
+## Optimization time
 | Case \ Group | Ours | Baseline | Speedup |
 |-|-|-|-|
 | Patient001 | 9.36e+01 | 891.7584 | 9.527 |
@@ -54,4 +54,14 @@ Average speedup: 13.63
 | Patient003 | 6.28e+01 | 678.3028 | 10.801 |
 | Patient004 | 1.69e+02 | 1.7982e+03 | 10.640 |
 | Patient005 | 1.00e+02 | 1.1421e+03 | 11.421 |
-Average speedup: 10.606
+| Average | 1:40.820 | 17:49.552 | 10.606 |
+
+## Optimization time convert
+| Case \ Group | Ours | Baseline | Speedup |
+|-|-|-|-|
+| Patient001 | 1:33.6 | 14:51.8 | 9.527 |
+| Patient002 | 1:18.7 | 13:57.4 | 10.640 |
+| Patient003 | 1:02.8 | 11:18.3 | 10.801 |
+| Patient004 | 2:49.0 | 29:58.2 | 10.640 |
+| Patient005 | 1:40.0 | 19:02.1 | 11.421 |
+| Average | 1:40.8 | 17:49.6 | 10.606 |

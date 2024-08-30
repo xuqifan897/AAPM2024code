@@ -1,0 +1,12 @@
+restoredefaultpath;
+packagePath = '/data/qifan/projects/BeamOpt/BOO';
+BOO_QL_path = fullfile(packagePath, 'BOO_QL');
+CERR2016_path = fullfile(packagePath, 'CERR2016');
+CERRaddins_path = fullfile(packagePath, 'CERRaddins');
+utilities_path = fullfile(packagePath, 'utilities');
+beamlogs_path = fullfile(packagePath, 'beamlogs');
+addpath(genpath(BOO_QL_path), '-end');
+addpath(genpath(CERR2016_path), '-end');
+addpath(genpath(CERRaddins_path), '-end');
+addpath(genpath(utilities_path), '-end');
+addpath(genpath(beamlogs_path), '-end');
