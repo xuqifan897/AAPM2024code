@@ -16,7 +16,8 @@ targetFolder = fullfile(sourceFolder, 'plansAngleCorrect');
 patientList = {'002', '003', '009', '013', '070', '125', '132', '190'};
 numPatietns = length(patientList);
 
-for i = 1:numPatietns
+% for i = 1:numPatietns
+i = 6;
     patientName = patientList{i};
     patientFolder = fullfile(targetFolder, patientName);
     QihuiRyanFolder = fullfile(patientFolder, 'QihuiRyan');
@@ -37,6 +38,7 @@ for i = 1:numPatietns
 
     % assign the new beamweight to params
     params.beamWeight = beamWeight_QihuiRyan;
+    params.stepSize = 1e-5;
     paramsFileOut = fullfile(QihuiRyanFolder, 'params1.mat');
     save(paramsFileOut, 'params');
 
@@ -90,7 +92,7 @@ for i = 1:numPatietns
     StructureInfoFileOut = fullfile(QihuiRyanFolder, 'StructureInfo1.mat');
     save(StructureInfoFileOut, 'StructureInfo');
     patientName
-end
+% end
 
 
 function masks = loadMasks(maskfile)
