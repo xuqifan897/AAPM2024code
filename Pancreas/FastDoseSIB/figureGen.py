@@ -12,6 +12,7 @@ from io import BytesIO
 colors = list(mcolors.TABLEAU_COLORS.values()) + list(mcolors.XKCD_COLORS.values())
 sourceFolder = "/data/qifan/projects/FastDoseWorkplace/Pancreas/plansSIB"
 numPatients = 5
+isoRes = 2.5  # mm
 figureFolder = "/data/qifan/projects/AAPM2024/manufigures/PancreasSIB"
 if not os.path.isdir(figureFolder):
     os.mkdir(figureFolder)
@@ -79,7 +80,7 @@ def DVH_comp():
     
         block.tick_params(axis="x", labelsize=16)
         block.tick_params(axis="y", labelsize=16)
-        block.set_title(patientName, fontsize=20)
+        block.set_title("Patient {:03d}".format(i+1), fontsize=20)
         print(patientName)
     
     legendBlock = fig.add_subplot(gs[nRows-2, nCols-1])
@@ -93,7 +94,7 @@ def DVH_comp():
     legendBlock.legend(handles, labels, loc="center", ncols=1, fontsize=16)
     plt.tight_layout()
 
-    figureFile = os.path.join(figureFolder, "FastDosePancreasCorrect.png")
+    figureFile = os.path.join(figureFolder, "PancreasSIBDVH.png")
     plt.savefig(figureFile)
     plt.close(fig)
     plt.clf()
@@ -110,8 +111,6 @@ def drawDoseWash():
     SagittalWidth = 80
 
     for i in range(numPatients):
-        patientName = "Patient{:03d}".format(i+1)
-        patientFolder = os.path.join(sourceFolder, patientName)
         patientName = "Patient{:03d}".format(i+1)
         patientFolder = os.path.join(sourceFolder, patientName)
 
@@ -151,8 +150,8 @@ def drawDoseWash():
             masks[name] = maskArray
 
         # normalize
-        ptv = masks["PTV"]
-        body = masks["SKIN"]
+        ptv = masks["PTV"].astype(bool)
+        body = masks["SKIN"].astype(bool)
 
         # mask dose
         clinicalDose[np.logical_not(body)] = 0
@@ -169,26 +168,34 @@ def drawDoseWash():
         doseShowMax = np.max(clinicalDose)
         print(patientName)
         for name, doseArray in doseList:
+            ptvDose = doseArray[ptv]
+            ptvThresh = np.percentile(ptvDose, 5)
+            doseWashThresh = 0.2 * ptvThresh  # dose wash threshold is set to be 20% of the ptv dose
+            threshMask = doseArray > doseWashThresh
+
             densityAxial = density[z, :, :]
             doseAxial = doseArray[z, :, :]
             masksAxial = [(name, array[z, :, :]) for name, array in masks.items()]
             bodyAxial = body[z, :, :]
+            threshMaskAxial = threshMask[z, :, :]
             axialImage = drawSlice(densityAxial, doseAxial, masksAxial, bodyAxial,
-                ImageHeight, AxialWidth, colorMap, doseShowMax)
+                ImageHeight, AxialWidth, colorMap, doseShowMax, threshMaskAxial)
             
             densityCoronal = np.flip(density[:, y, :], axis=0)
             doseCoronal = np.flip(doseArray[:, y, :], axis=0)
             masksCoronal = [(name, np.flip(array[:, y, :], axis=0)) for name, array in masks.items()]
             bodyCoronal = np.flip(body[:, y, :], axis=0)
+            threshMaskCoronal = np.flip(threshMask[:, y, :], axis=0)
             coronalImage = drawSlice(densityCoronal, doseCoronal, masksCoronal, bodyCoronal,
-                ImageHeight, CoronalWidth, colorMap, doseShowMax)
+                ImageHeight, CoronalWidth, colorMap, doseShowMax, threshMaskCoronal)
             
             densitySagittal = np.flip(density[:, :, x], axis=0)
             doseSagittal = np.flip(doseArray[:, :, x], axis=0)
             masksSagittal = [(name, np.flip(array[:, :, x], axis=0)) for name, array in masks.items()]
             bodySagittal = np.flip(body[:, :, x], axis=0)
+            threshMaskSagittal = np.flip(threshMask[:, :, x], axis=0)
             sagittalImage = drawSlice(densitySagittal, doseSagittal, masksSagittal, bodySagittal,
-                ImageHeight, SagittalWidth, colorMap, doseShowMax)
+                ImageHeight, SagittalWidth, colorMap, doseShowMax, threshMaskSagittal)
             
             ImageRow = np.concatenate((axialImage, coronalImage, sagittalImage), axis=1)
             imageList.append(ImageRow)
@@ -205,11 +212,12 @@ def drawDoseWash():
 
 
 def drawSlice(densitySlice, doseSlice, maskSlice, bodySlice,
-    height, width, colorMap, doseShowMax):
+    height, width, colorMap, doseShowMax, threshMask):
     doseThresh = 10
     maskCentroid = calcCentroid2d(bodySlice)
     densityCrop = crop_and_fill(densitySlice, maskCentroid, height, width)
     doseCrop = crop_and_fill(doseSlice, maskCentroid, height, width)
+    threshMaskCrop = crop_and_fill(threshMask, maskCentroid, height, width)
     maskSliceCrop = []
     for name, mask_slice in maskSlice:
         mask_slice_crop = crop_and_fill(mask_slice, maskCentroid, height, width)
@@ -220,9 +228,8 @@ def drawSlice(densitySlice, doseSlice, maskSlice, bodySlice,
         color = colorMap[name]
         contours = measure.find_contours(mask)
         for contour in contours:
-            # ax.plot(contour[:, 1], contour[:, 0], color=color, linewidth=4)
             ax.plot(contour[:, 1], contour[:, 0], color=color, linewidth=0.5)
-    ax.imshow(doseCrop, cmap="jet", vmin=0, vmax=doseShowMax, alpha=(doseCrop>doseThresh)*0.3)
+    ax.imshow(doseCrop, cmap="jet", vmin=0, vmax=doseShowMax, alpha=threshMaskCrop*0.3)
     ax.axis("off")
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
     buf = BytesIO()
@@ -340,36 +347,34 @@ def hex_to_rgb(hex_color):
     return result
 
 
-def nrrdGen():
-    isoRes = 2.5  # mm
-    structList = []
-    for i in range(numPatients):
-        patientName = "Patient{:03d}".format(i+1)
-        patientFolder = os.path.join(sourceFolder, patientName)
-        maskFolder = os.path.join(patientFolder, "InputMask")
-        structsLocal = [a.split(".")[0] for a in os.listdir(maskFolder)]
-        for a in structsLocal:
-            if a not in structList:
-                structList.append(a)
-    ptv = "ROI"
-    body = "SKIN"
-    assert ptv in structList and body in structList
-    structList.remove(ptv)
-    structList.remove(body)
-    structList.sort()
-    structList.insert(0, ptv)
-    structList.append(body)
-    structList.append("beams")
-    colorMap = {}
-    for i, name in enumerate(structList):
-        colorMap[name] = hex_to_rgb(colors[i])
-
+def nrrdVerification():
     nrrdFastDose = os.path.join(sourceFolder, "nrrdFastDose")
     if not os.path.isdir(nrrdFastDose):
         os.mkdir(nrrdFastDose)
     nrrdQihuiRyan = os.path.join(sourceFolder, "nrrdQihuiRyan")
     if not os.path.isdir(nrrdQihuiRyan):
         os.mkdir(nrrdQihuiRyan)
+    structsList = []
+    for i in range(numPatients):
+        patientName = "Patient{:03d}".format(i+1)
+        maskFolder = os.path.join(sourceFolder, patientName, "InputMask")
+        structsLocal = [a.split(".")[0] for a in os.listdir(maskFolder)]
+        for a in structsLocal:
+            if a not in structsList:
+                structsList.append(a)
+    ptv = "ROI"
+    body = "SKIN"
+    beams = "BEAMS"
+    assert ptv in structsList and body in structsList
+    structsList.remove(ptv)
+    structsList.remove(body)
+    structsList.sort()
+    structsList.insert(0, ptv)
+    structsList.append(beams)
+    structsList.append(body)
+    colorMap = {}
+    for i, a in enumerate(structsList):
+        colorMap[a] = hex_to_rgb(colors[i])
     
     for i in range(numPatients):
         patientName = "Patient{:03d}".format(i+1)
@@ -377,78 +382,439 @@ def nrrdGen():
         dimension = os.path.join(patientFolder, "FastDose", "prep_output", "dimension.txt")
         with open(dimension, "r") as f:
             dimension = f.readline()
-        dimension = eval(dimension.replace(" ", ", "))  # (x, y, z)
-        dimension_flip = np.flip(dimension)  # (z, y, x)
+        dimension = dimension.replace(" ", ", ")
+        dimension = eval(dimension)
+        dimension_flip = np.flip(dimension)
 
         maskFolder = os.path.join(patientFolder, "InputMask")
-        structsLocal = [a.split(".")[0] for a in os.listdir(maskFolder)]
+        structs = [a.split(".")[0] for a in os.listdir(maskFolder)]
+        maskDict = {}
+        for struct in structs:
+            maskArray = os.path.join(maskFolder, struct + ".bin")
+            maskArray = np.fromfile(maskArray, dtype=np.uint8)
+            maskArray = np.reshape(maskArray, dimension_flip)
+            maskDict[struct] = maskArray
 
-        nStructs = len(structsLocal)
-        fullDimension = np.insert(dimension_flip, 0, nStructs).astype(np.int64)
+        validBeams = os.path.join(patientFolder, "FastDose", "beamlist.txt")
+        with open(validBeams, "r") as f:
+            validBeams = f.readlines()
+        for j in range(len(validBeams)):
+            line = validBeams[j]
+            line = line.replace(" ", ", ")
+            line = np.array(eval(line)) * np.pi / 180  # degree to radian
+            validBeams[j] = line
+        
+        ptvMask = maskDict["ROI"]
+        beamListFastDose = os.path.join(patientFolder, "FastDose", "plan1", "metadata.txt")
+        with open(beamListFastDose, "r") as f:
+            beamListFastDose = f.readlines()
+        beamListFastDose = beamListFastDose[3]
+        beamListFastDose = eval(beamListFastDose.replace("  ", ", "))
+        beamListFastDose = [validBeams[k] for k in beamListFastDose]
+        beamMaskFastDose = genBeamsMask(ptvMask, beamListFastDose)
+        maskDictFastDose = maskDict.copy()
+        maskDictFastDose[beams] = beamMaskFastDose
+        maskFastDose, headerFastDose = nrrdGen(maskDictFastDose, colorMap, dimension_flip)
+        file = os.path.join(nrrdFastDose, patientName + ".nrrd")
+        nrrd.write(file, maskFastDose, headerFastDose)
+        print(file)
+        
+        beamFileQihuiRyan = os.path.join(patientFolder, "QihuiRyan", "selected_angles.csv")
+        with open(beamFileQihuiRyan, "r") as f:
+            beamListQihuiRyan = f.readlines()
+        beamListQihuiRyan = beamListQihuiRyan[1:]  # remove the header
+        beamListQihuiRyan = [a for a in beamListQihuiRyan if a != "\n"]
+        for j in range(len(beamListQihuiRyan)):
+            line = eval(beamListQihuiRyan[j])
+            line = line + (0.0000, )
+            line = np.array(line[1:]) * np.pi / 180  # leave only the angles, and convert to radian
+            beamListQihuiRyan[j] = line
+        beamMaskQihuiRyan = genBeamsMask(ptvMask, beamListQihuiRyan)
+        maskDictQihuiRyan = maskDict.copy()
+        maskDictQihuiRyan[beams] = beamMaskQihuiRyan
+        maskQihuiRyan, headerQihuiRyan = nrrdGen(maskDictQihuiRyan, colorMap, dimension_flip)
+        file = os.path.join(nrrdQihuiRyan, patientName + ".nrrd")
+        nrrd.write(file, maskQihuiRyan, headerQihuiRyan)
+        print(file)
 
-        space_directions = np.array([
-            [np.nan, np.nan, np.nan],
-            [isoRes, 0, 0],
-            [0, isoRes, 0],
-            [0, 0, isoRes]
-        ])
-        space_origin = np.array((0, 0, 0), dtype=np.float64)
 
-        header_beginning = [
-            ("type", "uint8"),
-            ("dimension", 4),
-            ("space", "left-posterior-superior"),
-            ("sizes", fullDimension),
-            ("space directions", space_directions),
-            ("kinds", ["list", "domain", "domain", "domain"]),
-            ("encoding", "gzip"),
-            ("space origin", space_origin)
-        ]
+def nrrdGen(maskDict, colorMap, dimensionOrg):
+    nStructs = len(maskDict)
+    dimensionFlip = (dimensionOrg[2], dimensionOrg[1], dimensionOrg[0])
+    fullDimension = (nStructs,) + dimensionFlip
+    fullDimension = np.array(fullDimension, dtype=np.int64)
 
-        header_ending = [
-            ("Segmentation_ContainedRepresentationNames", "Binary labelmap|Closed surface|"),
-            ("Segmentation_ConversionParameters",""),
-            ("Segmentation_MasterRepresentation","Binary labelmap"),
-            ("Segmentation_ReferenceImageExtentOffset", "0 0 0")
-        ]
-        extent_str = "0 {} 0 {} 0 {}".format(*dimension_flip)
+    space_directions = np.array([
+        [np.nan, np.nan, np.nan],
+        [isoRes, 0, 0],
+        [0, isoRes, 0],
+        [0, 0, isoRes]
+    ])
+    space_origin = np.array((0, 0, 0), dtype=np.float64)
 
-        header_middle = []
-        seg_array = np.zeros(fullDimension, dtype=np.uint8)
-        idx = 0
-        for name in structList:
-            if name not in structsLocal:
-                continue
-            localMask = os.path.join(maskFolder, name+".bin")
-            localMask = np.fromfile(localMask, dtype=np.uint8)
-            localMask = np.reshape(localMask, dimension_flip)
-            seg_array[idx, :, :, :] = localMask
-            
-            key_header = "Segment{}_".format(idx)
-            color = colorMap[name]
-            header_middle.append((key_header + "Color", color))
-            header_middle.append((key_header + "ColorAutoGenerated", "1"))
-            header_middle.append((key_header + "Extent", extent_str))
-            header_middle.append((key_header + "ID", name))
-            header_middle.append((key_header + "LabelValue", "1"))
-            header_middle.append((key_header + "Layer", idx))
-            header_middle.append((key_header + "Name", name))
-            header_middle.append((key_header + "NameAutoGenerated", "1"))
-            header_middle.append((key_header + "Tags",
-                "DicomRtImport.RoiNumber:{}|TerminologyEntry:Segmentation "
-                    "category and type - 3D Slicer General Anatomy ".format(idx+1)))
-            idx += 1
-        header_middle.sort(key=lambda a: a[0])
-        header_result = header_beginning + header_middle + header_ending
-        header_result = OrderedDict(header_result)
+    header_beginning = [
+        ("type", "uint8"),
+        ("dimension", 4),
+        ("space", "left-posterior-superior"),
+        ("sizes", fullDimension),
+        ("space directions", space_directions),
+        ("kinds", ["list", "domain", "domain", "domain"]),
+        ("encoding", "gzip"),
+        ("space origin", space_origin)
+    ]
 
-        nrrdFile = os.path.join(nrrdFastDose, patientName + ".nrrd")
-        nrrd.write(nrrdFile, seg_array, header_result)
-        print(nrrdFile)
-        break
+    header_ending = [
+        ("Segmentation_ContainedRepresentationNames", "Binary labelmap|Closed surface|"),
+        ("Segmentation_ConversionParameters",""),
+        ("Segmentation_MasterRepresentation","Binary labelmap"),
+        ("Segmentation_ReferenceImageExtentOffset", "0 0 0")
+    ]
+    extent_str = "0 {} 0 {} 0 {}".format(*dimensionFlip)
+
+    header_middle = []
+    seg_array = np.zeros(fullDimension, dtype=np.uint8)
+    for i, entry in enumerate(maskDict.items()):
+        name, localMask = entry
+        seg_array[i, :, :, :] = np.transpose(localMask)
+        key_header = "Segment{}_".format(i)
+        
+        color = colorMap[name]
+        header_middle.append((key_header + "Color", color))
+        header_middle.append((key_header + "ColorAutoGenerated", "1"))
+        header_middle.append((key_header + "Extent", extent_str))
+        header_middle.append((key_header + "ID", name))
+        header_middle.append((key_header + "LabelValue", "1"))
+        header_middle.append((key_header + "Layer", i))
+        header_middle.append((key_header + "Name", name))
+        header_middle.append((key_header + "NameAutoGenerated", "1"))
+        header_middle.append((key_header + "Tags",
+            "DicomRtImport.RoiNumber:{}|TerminologyEntry:Segmentation category and type - 3D Slicer General Anatomy ".format(i+1)))
+
+    header_middle.sort(key = lambda a: a[0])
+    header_result = header_beginning + header_middle + header_ending
+    header_result = OrderedDict(header_result)
+
+    return seg_array, header_result
+
+
+def rotateAroundAxisAtOrigin(p: np.ndarray, r: np.ndarray, t: float):
+    # ASSUMES r IS NORMALIZED ALREADY and center is (0, 0, 0)
+    # p - vector to rotate
+    # r - rotation axis
+    # t - rotation angle
+    sptr = np.sin(t)
+    cptr = np.cos(t)
+    result = np.array((
+        (-r[0]*(-r[0]*p[0] - r[1]*p[1] - r[2]*p[2]))*(1-cptr) + p[0]*cptr + (-r[2]*p[1] + r[1]*p[2])*sptr,
+        (-r[1]*(-r[0]*p[0] - r[1]*p[1] - r[2]*p[2]))*(1-cptr) + p[1]*cptr + (+r[2]*p[0] - r[0]*p[2])*sptr,
+        (-r[2]*(-r[0]*p[0] - r[1]*p[1] - r[2]*p[2]))*(1-cptr) + p[2]*cptr + (-r[1]*p[0] + r[0]*p[1])*sptr
+    ))
+    return result
+
+
+def inverseRotateBeamAtOriginRHS(vec: np.ndarray, theta: float, phi: float, coll: float):
+    tmp = rotateAroundAxisAtOrigin(vec, np.array((0., 1., 0.)), -(phi+coll))  # coll rotation + correction
+    sptr = np.sin(-phi)
+    cptr = np.cos(-phi)
+    rotation_axis = np.array((sptr, 0., cptr))
+    result = rotateAroundAxisAtOrigin(tmp, rotation_axis, theta)
+    return result
+
+
+def centroidCalc(ptv):
+    ptv = ptv > 0
+    totalVoxels = np.sum(ptv)
+    
+    ptvShape = ptv.shape
+    xScale = np.arange(ptvShape[0])
+    xScale = np.expand_dims(xScale, axis=(1, 2))
+    xCoord = np.sum(ptv * xScale) / totalVoxels
+
+    yScale = np.arange(ptvShape[1])
+    yScale = np.expand_dims(yScale, axis=(0, 2))
+    yCoord = np.sum(ptv * yScale) / totalVoxels
+
+    zScale = np.arange(ptvShape[2])
+    zScale = np.expand_dims(zScale, axis=(0, 1))
+    zCoord = np.sum(ptv * zScale) / totalVoxels
+
+    return np.array((xCoord, yCoord, zCoord))
+
+
+def genBeamsMask(PTVMask, beamsSelect):
+    directionsSelect = []
+    for angle in beamsSelect:
+        axisBEV = np.array((0, 1, 0))
+        axisPVCS = inverseRotateBeamAtOriginRHS(axisBEV, angle[0], angle[1], angle[2])
+        directionsSelect.append(axisPVCS)
+    
+    # calculate the coordinates
+    coordsShape = PTVMask.shape + (3, )
+    coords = np.zeros(coordsShape, dtype=float)
+    axis_z = np.arange(coordsShape[0])
+    axis_z = np.expand_dims(axis_z, axis=(1, 2))
+    axis_y = np.arange(coordsShape[1])
+    axis_y = np.expand_dims(axis_y, axis=(0, 2))
+    axis_x = np.arange(coordsShape[2])
+    axis_x = np.expand_dims(axis_x, axis=(0, 1))
+    coords[:, :, :, 0] = axis_z
+    coords[:, :, :, 1] = axis_y
+    coords[:, :, :, 2] = axis_x
+    PTVCentroid = centroidCalc(PTVMask)
+    PTVCentroid = np.expand_dims(PTVCentroid, axis=(0, 1, 2))
+    coords_minus_isocenter = coords - PTVCentroid
+
+    beamsMask = None
+    radius = 2
+    barLength = 100
+    for direction in directionsSelect:
+        # from (x, y, z) to (z, y, x)
+        direction = np.flip(direction)
+        direction_ = np.expand_dims(direction, axis=(0, 1, 2))
+        alongAxisProjection = np.sum(coords_minus_isocenter * direction_, axis=3, keepdims=True)
+        perpendicular = coords_minus_isocenter - alongAxisProjection * direction_
+        distance = np.linalg.norm(perpendicular, axis=3)
+
+        alongAxisProjection = np.squeeze(alongAxisProjection)
+        localMask = distance < radius
+        localMask = np.logical_and(localMask, alongAxisProjection < 0)
+        localMask = np.logical_and(localMask, alongAxisProjection > -barLength)
+
+        if beamsMask is None:
+            beamsMask = localMask
+        else:
+            beamsMask = np.logical_or(beamsMask, localMask)
+    return beamsMask
+
+
+def beamViewGrouping():
+    """
+    This function groups the beam view images
+    """
+    beamViewFastDoseFolder = os.path.join(sourceFolder, "beamViewFastDose")
+    beamViewQihuiRyanFolder = os.path.join(sourceFolder, "beamViewQihuiRyan")
+    targetWidth = 500
+    FastDoseList = []
+    QihuiRyanList = []
+    imageShape = None
+    for i in range(numPatients):
+        beamViewFastDoseImage = os.path.join(beamViewFastDoseFolder, "Patient{:03d}.png".format(i+1))
+        beamViewFastDoseImage = plt.imread(beamViewFastDoseImage)
+        if imageShape is None:
+            imageShape = beamViewFastDoseImage.shape
+        else:
+            assert imageShape == beamViewFastDoseImage.shape
+        idxBegin = int((imageShape[1] - targetWidth) / 2)
+        beamViewFastDoseImage = beamViewFastDoseImage[:, idxBegin:idxBegin+targetWidth, :]
+        FastDoseList.append(beamViewFastDoseImage)
+
+        beamViewQihuiRyanImage = os.path.join(beamViewQihuiRyanFolder, "Patient{:03d}.png".format(i+1))
+        beamViewQihuiRyanImage = plt.imread(beamViewQihuiRyanImage)
+        assert(beamViewQihuiRyanImage.shape == imageShape)
+        beamViewQihuiRyanImage = beamViewQihuiRyanImage[:, idxBegin:idxBegin+targetWidth, :]
+        QihuiRyanList.append(beamViewQihuiRyanImage)
+
+    patchShape = (imageShape[0], targetWidth, 4)
+    canvasShape = (patchShape[0]*3, patchShape[1]*4, 4)
+    canvas = np.ones(canvasShape, dtype=np.float32)
+    for i in range(numPatients):
+        rowIdx = i // 2
+        colIdx = i % 2
+        rowOffset = rowIdx * patchShape[0]
+        colOffset = 2 * colIdx * patchShape[1]
+        FastDosePatch = FastDoseList[i]
+        canvas[rowOffset: rowOffset+patchShape[0], colOffset: colOffset+patchShape[1], :] = FastDosePatch
+    
+        QihuiRyanPatch = QihuiRyanList[i]
+        colOffset = (2 * colIdx + 1) * patchShape[1]
+        canvas[rowOffset: rowOffset+patchShape[0], colOffset: colOffset+patchShape[1], :] = QihuiRyanPatch
+    
+    # add legend
+    fig, ax = plt.subplots(figsize=(canvas.shape[1]/100, canvas.shape[0]/100), dpi=100)
+    ax.imshow(canvas)
+    fontsize = 25
+    rowOffset__ = 10
+    for i in range(numPatients):
+        legend = "Patient {:03d}\nOurs".format(i+1)
+        rowIdx = i // 2
+        rowOffset = rowIdx * patchShape[0] + rowOffset__
+        colIdx = i % 2
+        colOffset = colIdx * 2 * patchShape[1]
+        ax.text(colOffset, rowOffset, legend, ha="left", va="top", fontsize=fontsize)
+
+        legend = "Patient {:03d}\nBaseline".format(i+1)
+        colOffset = (colIdx * 2 + 1) * patchShape[1]
+        ax.text(colOffset, rowOffset, legend, ha="left", va="top", fontsize=fontsize)
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    imageFile = os.path.join(sourceFolder, "PancreasSIBBeamsView.png")
+    plt.savefig(imageFile)
+    plt.close(fig)
+    plt.clf()
+
+
+def R50Calculation():
+    """
+    This function calculates R 50
+    """
+    dosePercentile = 10
+    content = ["| Patient | Ours | Baseline | Clinical |", "| - | - | - | - |"]
+    for i in range(numPatients):
+        patientName = "Patient{:03d}".format(i+1)
+        patientFolder = os.path.join(sourceFolder, patientName)
+        doseRef = os.path.join(patientFolder, "doseNorm.bin")
+        doseFastDose = os.path.join(patientFolder, "FastDose", "plan1", "dose.bin")
+        doseQihuiRyan = os.path.join(patientFolder, "QihuiRyan", "doseQihuiRyan.bin")
+        doseRef = np.fromfile(doseRef, dtype=np.float32)
+        doseFastDose = np.fromfile(doseFastDose, dtype=np.float32)
+        doseQihuiRyan = np.fromfile(doseQihuiRyan, dtype=np.float32)
+
+        # mask out body
+        bodyMask = os.path.join(patientFolder, "InputMask", "SKIN.bin")
+        bodyMask = np.fromfile(bodyMask, dtype=np.uint8).astype(bool)
+        notBodyMask = np.logical_not(bodyMask)
+        doseRef[notBodyMask] = 0
+        doseFastDose[notBodyMask] = 0
+        doseQihuiRyan[notBodyMask] = 0
+
+        ptvMask = os.path.join(patientFolder, "InputMask", "ROI.bin")
+        ptvMask = np.fromfile(ptvMask, dtype=np.uint8).astype(bool)
+        ptvVoxels = np.sum(ptvMask)
+
+        ptvDoseRef = doseRef[ptvMask]
+        ptvDoseThresh = np.percentile(ptvDoseRef, dosePercentile) * 0.5  # half of the prescription dose
+        doseRefR50 = doseRef > ptvDoseThresh
+        doseRefR50 = np.sum(doseRefR50) / ptvVoxels
+
+        ptvDoseFastDose = doseFastDose[ptvMask]
+        ptvDoseThresh = np.percentile(ptvDoseFastDose, dosePercentile) * 0.5
+        doseFastDoseR50 = doseFastDose > ptvDoseThresh
+        doseFastDoseR50 = np.sum(doseFastDoseR50) / ptvVoxels
+
+        ptvDoseQihuiRyan = doseQihuiRyan[ptvMask]
+        ptvDoseThresh = np.percentile(ptvDoseQihuiRyan, dosePercentile) * 0.5
+        doseQihuiRyanR50 = doseQihuiRyan > ptvDoseThresh
+        doseQihuiRyanR50 = np.sum(doseQihuiRyanR50) / ptvVoxels
+
+        line = "| {:03d} | {:.3f} | {:.3f} | {:.3f} |".format(i+1, doseFastDoseR50, doseQihuiRyanR50, doseRefR50)
+        content.append(line)
+    content = "\n".join(content)
+    print(content)
+
+
+def doseCalculationTimeComp():
+    def doseMatTimeExtract(path):
+        with open(path, "r") as f:
+            lines = f.readlines()
+        keyWords = "Dose calculation time: "
+        lines = [a for a in lines if keyWords in a]
+        assert len(lines) == 1
+        line = lines[0]
+        line = [a for a in line.split(" ") if "e+" in a]
+        assert len(line) == 1
+        return eval(line[0])
+    
+    def QihuiRyanDosecalcTime(path):
+        with open(path, "r") as f:
+            lines = f.readlines()
+        keyWords = "real	"
+        lines = [a for a in lines if keyWords in a]
+        assert len(lines) == 1
+        line = lines[0]
+        line = line.split("	")
+        line = line[1]
+        result = ms2sec(line)
+        return result
+    
+    def ms2sec(input: str):
+        mIdx = input.find("m")
+        sIdx = input.find("s")
+        minutes = eval(input[:mIdx])
+        seconds = eval(input[mIdx+1: sIdx])
+        result = minutes * 60 + seconds
+        return result
+    
+    content = ["| Patient | Ours | Baseline | Speedup |",
+        "| - | - | - | - |"]
+    FastDoseTimeList = []
+    baselineTimeList = []
+    speedupList = []
+    for i in range(numPatients):
+        patientName = "Patient{:03d}".format(i+1)
+        patientFolder = os.path.join(sourceFolder, patientName)
+        doseMat1Log = os.path.join(patientFolder, "FastDose", "doseMat1.log")
+        doseMat1CalcTime = doseMatTimeExtract(doseMat1Log)
+        doseMat2Log = os.path.join(patientFolder, "FastDose", "doseMat2.log")
+        doseMat2CalcTime = doseMatTimeExtract(doseMat2Log)
+        FastDoseTime = doseMat1CalcTime + doseMat2CalcTime
+
+        baselineDosecalcTime = os.path.join(patientFolder, "QihuiRyan", "preprocess.log")
+        baselineDosecalcTime = QihuiRyanDosecalcTime(baselineDosecalcTime)
+        localSpeedup = baselineDosecalcTime / FastDoseTime
+        newLine = "| {:03d} | {:.3f} | {:.3f} | {:.3f} |".format(i+1, FastDoseTime, baselineDosecalcTime, localSpeedup)
+        content.append(newLine)
+        FastDoseTimeList.append(FastDoseTime)
+        baselineTimeList.append(baselineDosecalcTime)
+        speedupList.append(localSpeedup)
+
+    FastDoseTimeAvg = np.mean(FastDoseTimeList)
+    baselineTimeAvg = np.mean(baselineTimeList)
+    speedupAvg = np.mean(speedupList)
+    lastLine = "| Avg | {:.3f} | {:.3f} | {:.3f} |".format(
+        FastDoseTimeAvg, baselineTimeAvg, speedupAvg, speedupAvg)
+    content.append(lastLine)
+    content = "\n".join(content)
+    print(content)
+
+
+def BOOTimeComp():
+    """
+    This function compares the dose calculation time between our method and the baseline method
+    """
+    BOOTimeFile = os.path.join(os.getcwd(), "BOOTimePancreasSIBBaseline.txt")
+    with open(BOOTimeFile, "r") as f:
+        BOOlines = f.readlines()
+    BOOlines = [eval(a) for a in BOOlines]
+    content = ["| Patient | Ours | Baseline | Speedup |",
+        "| - | - | - | - |"]
+    oursTimeList = []
+    speedupList = []
+    for i in range(numPatients):
+        patientName = "Patient{:03d}".format(i+1)
+        patientFolder = os.path.join("/data/qifan/projects/FastDoseWorkplace/Pancreas", patientName)
+        FastDoseOptLogFile = os.path.join(patientFolder, "FastDose", "optimize.log")
+        with open(FastDoseOptLogFile, "r") as f:
+            lines = f.readlines()
+        keyWords = "Optimization iterations:"
+        lines = [a for a in lines if keyWords in a]
+        assert len(lines) == 2
+        line = lines[0]
+        line = line.split(" ")
+        keyWords = "e+"
+        line = [a for a in line if keyWords in a]
+        assert len(line) == 1
+        FastDoseOptTime = eval(line[0])
+
+        localSpeedup = BOOlines[i] / FastDoseOptTime
+        currentLine = "| {:03d} | {:.3f} | {:.3f} | {:.3f} |".format(
+            i+1, FastDoseOptTime, BOOlines[i], localSpeedup)
+        content.append(currentLine)
+        oursTimeList.append(FastDoseOptTime)
+        speedupList.append(localSpeedup)
+    
+    oursTimeAvg = np.mean(oursTimeList)
+    baselineTimeAvg = np.mean(BOOlines)
+    speedupAvg = np.mean(speedupList)
+    lastLine = "| Avg | {:.3f} | {:.3f} | {:.3f} |".format(oursTimeAvg, baselineTimeAvg, speedupAvg)
+    content.append(lastLine)
+    content = "\n".join(content)
+    print(content)
 
 
 if __name__ == "__main__":
     # DVH_comp()
     # drawDoseWash()
-    nrrdGen()
+    # nrrdVerification()
+    # beamViewGrouping()
+    R50Calculation()
+    # doseCalculationTimeComp()
+    # BOOTimeComp()
