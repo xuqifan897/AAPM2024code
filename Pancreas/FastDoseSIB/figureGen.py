@@ -605,6 +605,8 @@ def beamViewGrouping():
         else:
             assert imageShape == beamViewFastDoseImage.shape
         idxBegin = int((imageShape[1] - targetWidth) / 2)
+        if i == 0:
+            idxBegin -= 30
         beamViewFastDoseImage = beamViewFastDoseImage[:, idxBegin:idxBegin+targetWidth, :]
         FastDoseList.append(beamViewFastDoseImage)
 
@@ -646,6 +648,7 @@ def beamViewGrouping():
         colOffset = (colIdx * 2 + 1) * patchShape[1]
         ax.text(colOffset, rowOffset, legend, ha="left", va="top", fontsize=fontsize)
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    ax.axis("off")
     imageFile = os.path.join(sourceFolder, "PancreasSIBBeamsView.png")
     plt.savefig(imageFile)
     plt.close(fig)
@@ -680,25 +683,150 @@ def R50Calculation():
         ptvMask = np.fromfile(ptvMask, dtype=np.uint8).astype(bool)
         ptvVoxels = np.sum(ptvMask)
 
-        ptvDoseRef = doseRef[ptvMask]
-        ptvDoseThresh = np.percentile(ptvDoseRef, dosePercentile) * 0.5  # half of the prescription dose
-        doseRefR50 = doseRef > ptvDoseThresh
-        doseRefR50 = np.sum(doseRefR50) / ptvVoxels
+        if True:
+            ptvDoseRef = doseRef[ptvMask]
+            ptvDoseThresh = np.percentile(ptvDoseRef, dosePercentile) * 0.5  # half of the prescription dose
+            doseRefR50 = doseRef > ptvDoseThresh
+            doseRefR50 = np.sum(doseRefR50) / ptvVoxels
 
-        ptvDoseFastDose = doseFastDose[ptvMask]
-        ptvDoseThresh = np.percentile(ptvDoseFastDose, dosePercentile) * 0.5
-        doseFastDoseR50 = doseFastDose > ptvDoseThresh
-        doseFastDoseR50 = np.sum(doseFastDoseR50) / ptvVoxels
+            ptvDoseFastDose = doseFastDose[ptvMask]
+            ptvDoseThresh = np.percentile(ptvDoseFastDose, dosePercentile) * 0.5
+            doseFastDoseR50 = doseFastDose > ptvDoseThresh
+            doseFastDoseR50 = np.sum(doseFastDoseR50) / ptvVoxels
 
-        ptvDoseQihuiRyan = doseQihuiRyan[ptvMask]
-        ptvDoseThresh = np.percentile(ptvDoseQihuiRyan, dosePercentile) * 0.5
-        doseQihuiRyanR50 = doseQihuiRyan > ptvDoseThresh
-        doseQihuiRyanR50 = np.sum(doseQihuiRyanR50) / ptvVoxels
+            ptvDoseQihuiRyan = doseQihuiRyan[ptvMask]
+            ptvDoseThresh = np.percentile(ptvDoseQihuiRyan, dosePercentile) * 0.5
+            doseQihuiRyanR50 = doseQihuiRyan > ptvDoseThresh
+            doseQihuiRyanR50 = np.sum(doseQihuiRyanR50) / ptvVoxels
+        else:
+            ptvDoseRef = doseRef[ptvMask]
+            ptvDoseThresh = np.percentile(ptvDoseRef, dosePercentile)
+            halfPTVDose = ptvDoseThresh * 0.5
+            ptvVoxelsRef = np.sum(doseRef > ptvDoseThresh)
+            halfPTVVoxels = np.sum(doseRef > halfPTVDose)
+            doseRefR50 = halfPTVVoxels / ptvVoxelsRef
+
+            ptvDoseFastDose = doseFastDose[ptvMask]
+            ptvDoseThresh = np.percentile(ptvDoseFastDose, dosePercentile)
+            halfPTVDose = ptvDoseThresh * 0.5
+            ptvVoxelsFastDose = np.sum(doseFastDose > ptvDoseThresh)
+            halfPTVVoxels = np.sum(doseFastDose > halfPTVDose)
+            doseFastDoseR50 = halfPTVVoxels / ptvVoxelsFastDose
+
+            ptvDoseQihuiRyan = doseQihuiRyan[ptvMask]
+            ptvDoseThresh = np.percentile(ptvDoseQihuiRyan, dosePercentile)
+            halfPTVDose = ptvDoseThresh * 0.5
+            ptvVoxelsQihuiRyan = np.sum(doseQihuiRyan > ptvDoseThresh)
+            halfPTVVoxels = np.sum(doseQihuiRyan > halfPTVDose)
+            doseQihuiRyanR50 = halfPTVVoxels / ptvVoxelsQihuiRyan
+            # print(np.sum(ptvMask), ptvVoxelsRef, ptvVoxelsFastDose, ptvVoxelsQihuiRyan)
+            print(np.mean(doseRef), np.mean(doseFastDose), np.mean(doseQihuiRyan))
 
         line = "| {:03d} | {:.3f} | {:.3f} | {:.3f} |".format(i+1, doseFastDoseR50, doseQihuiRyanR50, doseRefR50)
         content.append(line)
     content = "\n".join(content)
     print(content)
+
+
+def R50ExaminePlot():
+    """
+    This function does the sanity check of the R50 calculation
+    """
+    SanityCheckImageFolder = os.path.join(sourceFolder, "R50SanityCheck")
+    if not os.path.isdir(SanityCheckImageFolder):
+        os.mkdir(SanityCheckImageFolder)
+    for i in range(numPatients):
+        patientName = "Patient{:03d}".format(i+1)
+        patientFolder = os.path.join(sourceFolder, patientName)
+        dimension = os.path.join(patientFolder, "FastDose", "prep_output", "dimension.txt")
+        with open(dimension, "r") as f:
+            dimension = f.readline()
+        dimension = dimension.replace(" ", ", ")
+        dimension = eval(dimension)
+        dimension_flip = np.flip(dimension)
+
+        density = os.path.join(patientFolder, "density_raw.bin")
+        density = np.fromfile(density, dtype=np.uint16)
+        density = np.reshape(density, dimension_flip)
+
+        doseRef = os.path.join(patientFolder, "doseNorm.bin")
+        doseRef = np.fromfile(doseRef, dtype=np.float32)
+        doseRef = np.reshape(doseRef, dimension_flip)
+
+        doseFastDose = os.path.join(patientFolder, "FastDose", "plan1", "dose.bin")
+        doseFastDose = np.fromfile(doseFastDose, dtype=np.float32)
+        doseFastDose = np.reshape(doseFastDose, dimension_flip)
+
+        doseQihuiRyan = os.path.join(patientFolder, "QihuiRyan", "doseQihuiRyan.bin")
+        doseQihuiRyan = np.fromfile(doseQihuiRyan, dtype=np.float32)
+        doseQihuiRyan = np.reshape(doseQihuiRyan, dimension_flip)
+
+        bodyMask = os.path.join(patientFolder, "InputMask", "SKIN.bin")
+        bodyMask = np.fromfile(bodyMask, dtype=np.uint8) > 0
+        bodyMask = np.reshape(bodyMask, dimension_flip)
+
+        ptvMask = os.path.join(patientFolder, "InputMask", "ROI.bin")
+        ptvMask = np.fromfile(ptvMask, dtype=np.uint8) > 0
+        ptvMask = np.reshape(ptvMask, dimension_flip)
+
+        # normalize prescription dose to 20 Gy
+        prescriptionDose = 20
+        doseShowMax = 50
+        prescriptionPercentile = 10
+        notBodyMask = np.logical_not(bodyMask)
+
+        doseRefPTV = doseRef[ptvMask]
+        doseRefThresh = np.percentile(doseRefPTV, prescriptionPercentile)
+        doseRef *= prescriptionDose / doseRefThresh
+        doseRef[notBodyMask] = 0
+
+        doseFastDosePTV = doseFastDose[ptvMask]
+        doseFastDoseThresh = np.percentile(doseFastDosePTV, prescriptionPercentile)
+        doseFastDose *= prescriptionDose / doseFastDoseThresh
+        doseFastDose[notBodyMask] = 0
+
+        doseQihuiRyanPTV = doseQihuiRyan[ptvMask]
+        doseQihuiRyanThresh = np.percentile(doseQihuiRyanPTV, prescriptionPercentile)
+        doseQihuiRyan *= prescriptionDose / doseQihuiRyanThresh
+        doseQihuiRyan[notBodyMask] = 0
+
+        patientImageFolder = os.path.join(SanityCheckImageFolder, patientName)
+        if not os.path.isdir(patientImageFolder):
+            os.mkdir(patientImageFolder)
+        dimZ = dimension_flip[0]
+
+        doseList = [doseRef, doseFastDose, doseQihuiRyan]
+        for j in range(dimZ):
+            densitySlice = density[j, :, :]
+            ptvSlice = ptvMask[j, :, :]
+            ptvCounters = measure.find_contours(ptvSlice)
+
+            fig = plt.figure(figsize=(12, 4))
+            gs = gridspec.GridSpec(1, 3, width_ratios=[1, 1, 1])
+            for k in range(3):
+                current_block = fig.add_subplot(gs[0, k])
+                current_block.imshow(densitySlice, vmin=0, vmax=1200, cmap="gray")
+
+                doseSlice = doseList[k][j, :, :]
+                current_block.imshow(doseSlice, vmin=0, vmax=doseShowMax, cmap="jet", alpha=0.3)
+                for contour in ptvCounters:
+                    current_block.plot(contour[:, 1], contour[:, 0],
+                        linewidth=1, linestyle="--", color=colors[0])
+
+                R50Region = doseSlice > prescriptionDose * 0.5
+                R50RegionContours = measure.find_contours(R50Region)
+                for contour in R50RegionContours:
+                    current_block.plot(contour[:, 1], contour[:, 0],
+                        linewidth=1, linestyle="--", color=colors[1])
+
+
+            figureFile = os.path.join(patientImageFolder, "{:03d}.png".format(j))
+            fig.tight_layout()
+            fig.savefig(figureFile)
+            plt.close(fig)
+            plt.clf()
+            print(figureFile)
+        break
 
 
 def doseCalculationTimeComp():
@@ -816,5 +944,6 @@ if __name__ == "__main__":
     # nrrdVerification()
     # beamViewGrouping()
     R50Calculation()
+    # R50ExaminePlot()
     # doseCalculationTimeComp()
     # BOOTimeComp()

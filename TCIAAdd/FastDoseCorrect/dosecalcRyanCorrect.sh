@@ -5,12 +5,10 @@ dosecalc_exe="/data/qifan/projects/BeamOpt/CCCS/build/dosecalc-beamlet/dosecalc-
 sourceFolder="/data/qifan/projects/FastDoseWorkplace/TCIAAdd"
 targetFolder="${sourceFolder}/plansAngleCorrect"
 
-Idx=$1
-stride=4
-deviceIdx=$(( $Idx % ${stride} ))
+deviceIdx=2
 numPatients=8
 patientList=(002 003 009 013 070 125 132 190)
-while [ $Idx -lt ${numPatients} ]; do
+for ((Idx=1; Idx<=8; Idx++)); do
     patient=${patientList[$Idx]}
     echo $patient
     for seg in 0 1 2 3; do
@@ -25,8 +23,8 @@ while [ $Idx -lt ${numPatients} ]; do
             --sparsity-threshold=${sparsity} \
             --ndevices=1 \
             --device=${deviceIdx} \
-            --temp_dir=${folder} ) \
+            --temp_dir=${folder} \
+            --srworkers=32 ) \
         2>&1 | tee ${logFile}
     done
-    Idx=$(( ${Idx}+${stride} ))
 done

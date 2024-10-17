@@ -6,7 +6,8 @@ sourceFolder="/data/qifan/projects/FastDoseWorkplace/TCIAAdd"
 targetFolder="${sourceFolder}/plansAngleCorrect"
 
 # for patientName in 002 003 009 013 070 125 132 190; do
-for patientName in 003 009 013 070 125 132 190; do
+# for patientName in 003 009 013 070 125 132 190; do
+for patientName in 132; do
     sourcePatientFolder="${sourceFolder}/${patientName}"
     targetPatientFolder="${targetFolder}/${patientName}"
     inputFolder="${sourcePatientFolder}/FastDose/prep_output"

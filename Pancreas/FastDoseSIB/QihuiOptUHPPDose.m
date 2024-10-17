@@ -12,43 +12,57 @@ addpath(genpath(utilities_path), '-end');
 addpath(genpath(beamlogs_path), '-end');
 
 clear;clc;
-sourceFolder = "/data/qifan/projects/FastDoseWorkplace/Pancreas/plansSIB";
+sourceFolder = '/data/qifan/projects/FastDoseWorkplace/Pancreas/plansSIB';
 numPatients = 5;
-thresh = 1e-6;
+fluenceDim = [20, 20];
 
-for i = 1:1
+for i = 1:numPatients
     patientName = ['Patient00', num2str(i)];
-    expFolder = fullfile(sourceFolder, patientName, 'QihuiRyan');
+    patientFolder = fullfile(sourceFolder, patientName);
 
     % load StructureInfo
-    StructureInfoFile = fullfile(expFolder, 'StructureInfo1.mat');
+    StructureInfoFile = fullfile(patientFolder, 'QihuiRyan', 'StructureInfo1.mat');
     load(StructureInfoFile, 'StructureInfo');
+    % transpose the mask matrices, from order [y, x, z] to [x, y, z]
+    for j = 1:numel(StructureInfo)
+        StructureInfo(i).Mask = permute(StructureInfo(i).Mask, [2, 1, 3]);
+    end
 
     % load params
-    paramsFile = fullfile(expFolder, 'params1.mat');
-    load(paramsFile, 'params');
+    paramsFile = fullfile(patientFolder, 'QihuiRyan', 'params1.mat');
+    paramsOrg = fullfile(patientFolder, 'FastDose', 'params.txt');
+    params = loadParams(paramsFile, paramsOrg);
+
+    phantomDim = fullfile(patientFolder, 'FastDose', 'prep_output', 'dimension.txt');
+    phantomDim = readDimension(phantomDim);
 
     % load target dose array
-    targetDoseFile = fullfile(sourceFolder, patientName, 'doseNorm.bin');
+    targetDoseFile = fullfile(patientFolder, 'doseNorm.bin');
     fileID = fopen(targetDoseFile, 'r');
     targetDose = fread(fileID, 'float32');
     fclose(fileID);
-    shape = size(StructureInfo(1).Mask);
-    shape_flip = [shape(2), shape(1), shape(3)];
-    targetDose = reshape(targetDose, shape_flip);
-    targetDose = permute(targetDose, [2, 1, 3]);
+    targetDose = reshape(targetDose, phantomDim);  % order: [x, y, z]
 
     % load matrix M
-    h5file = fullfile(expFolder, 'Dose_Coefficients.h5');
-    maskfile = fullfile(expFolder, 'Dose_Coefficients.mask');
-    [M, dose_data, masks] = BuildDoseMatrix(h5file, maskfile, thresh);
+    matFolder1 = fullfile(patientFolder, 'FastDose', 'doseMat1', 'doseMatFolder');
+    M1 = loadM(matFolder1, phantomDim);
+    matFolder2 = fullfile(patientFolder, 'FastDose', 'doseMat2', 'doseMatFolder');
+    M2 = loadM(matFolder2, phantomDim);
+    M = [M1, M2];  % dimension: [(x, y, z), n_beamlets]
+
+    BeamletLog1 = BeamletLogGen(matFolder1, fluenceDim);
+    BeamletLog2 = BeamletLogGen(matFolder2, fluenceDim);
+    BeamletLog = cat(3, BeamletLog1, BeamletLog2);
 
     % construct matrix A and weights
     DS = 1;
-    [A, Weights] = CreateA_SIB(M, StructureInfo,targetDose, DS);
+    [A, Weights] = CreateA_SIB(M, StructureInfo, targetDose, DS);
     ATrans = A';
-    [Dx, Dy] = CreateDxDyFMO(params.BeamletLog0);
+
+    [Dx, Dy] = CreateDxDyFMO(BeamletLog);
     D = [Dx; Dy];
+    params.BeamletLog0 = BeamletLog;
+    params.beamSizes = squeeze(sum(params.BeamletLog0, [1, 2]));
 
     % beam selection
     seed = 2;
@@ -60,7 +74,7 @@ for i = 1:1
         'params',params,'StructureInfo',StructureInfo,'xFista',xFista,...
         'activeBeams',activeBeams,'activeNorms',activeNorms,...
         'costsFista',costsFista,'timeBeamSelect',timeBeamSelect);
-    save(fullfile(expFolder, ['BOOresult.mat']), 'BOOresult');
+    save(fullfile(patientFolder, 'QihuiRyan', 'BOOresult_UHPP.mat'), 'BOOresult');
 
     % Show selected beams
     finalBeams = activeBeams;
@@ -76,19 +90,104 @@ for i = 1:1
     timePolish = toc;
 
     dose = M * xPolish;
+    shape = [phantomDim(2), phantomDim(1), phantomDim(3)];
     dose = reshape(dose, shape);
     polishResult = struct('patientName', patientName, 'dose', dose, 'finalBeams', finalBeams, ...
         'xPolish', xPolish, 'timePolish', timePolish, 'costsDF_polish', costsDF_polish, ...
         'gantryVarianIEC', gantryVarianIEC, 'couchVarianIEC', couchVarianIEC);
-    save(fullfile(expFolder, 'PolishResult.mat'), 'polishResult');
+    save(fullfile(patientFolder, 'QihuiRyan', 'PolishResult_UHPP.mat'), 'polishResult');
 
     finalBeams = finalBeams';
     selected_angles = struct('beamId',finalBeams,'gantryVarianIEC',gantryVarianIEC,'couchVarianIEC',couchVarianIEC);
     T = struct2table(selected_angles);
-    filename = fullfile(expFolder,['selected_angles','.csv']);
+    filename = fullfile(patientFolder, 'QihuiRyan', 'selected_angles_UHPP.csv');
     writetable(T,filename)
 end
 
+function BeamletLog = BeamletLogGen(matFolder, fluenceDim)
+    fluenceMapFile = fullfile(matFolder, 'fluenceMap.bin');
+    fileID = fopen(fluenceMapFile, 'r');
+    fluenceMap = fread(fileID, inf, 'uint8');
+    nBeams = numel(fluenceMap) / (fluenceDim(1) * fluenceDim(2));
+    shape_new = [fluenceDim(1), fluenceDim(2), nBeams];
+    BeamletLog = reshape(fluenceMap, shape_new);
+end
+
+function [params] = loadParams(paramsFile, paramsOrg)
+    load(paramsFile, 'params');
+    paramsOrg = fileread(paramsOrg);
+    paramsOrg = splitlines(paramsOrg);
+    beamWeight = strsplit(paramsOrg{1}, ',');
+    beamWeight = str2num(beamWeight{2});
+    gamma = strsplit(paramsOrg{2}, ',');
+    gamma = str2num(gamma{2});
+    eta = strsplit(paramsOrg{3}, ',');
+    eta = str2num(eta{2});
+    params.beamWeight = beamWeight;
+    params.gamma = gamma;
+    params.eta = eta;
+end
+
+function phantomdim = readDimension(dimensionFile)
+    dimensionText = fileread(dimensionFile);
+    dimension = strtok(dimensionText, newline);
+    dimension = strsplit(dimension);
+    phantomdim = [str2num(dimension{1}), str2num(dimension{2}), str2num(dimension{3})];
+end
+
+function M = loadM(doseFolder, phantomDim)
+    offsetsBufferFile = fullfile(doseFolder, "offsetsBuffer.bin");
+    columnsBufferFile = fullfile(doseFolder, "columnsBuffer.bin");
+    valuesBufferFile = fullfile(doseFolder, "valuesBuffer.bin");
+    NonZeroElementsFile = fullfile(doseFolder, "NonZeroElements.bin");
+    numRowsPerMat = fullfile(doseFolder, "numRowsPerMat.bin");
+
+    fid = fopen(offsetsBufferFile, 'rb');
+    if fid == -1
+        error('Could not open the binary file.');
+    end
+    offsetsBuffer = fread(fid, inf, "uint64");
+    fclose(fid);
+    fprintf('Finished loading the offsets buffer.\n');
+
+    fid = fopen(columnsBufferFile, 'rb');
+    if fid == -1
+        error('Could not open the file.');
+    end
+    columnsBuffer = fread(fid, inf, "uint64");
+    fclose(fid);
+    fprintf('Finished loading the columns buffer.\n')
+
+    fid = fopen(valuesBufferFile, 'rb');
+    if fid == -1
+        error('Could not open the file.');
+    end
+    valuesBuffer = fread(fid, inf, "float32");
+    fclose(fid);
+    fprintf('Finished loading the values buffer.\n');
+
+    fid = fopen(numRowsPerMat, 'rb');
+    if fid == -1
+        error('Could not open the file.');
+    end
+    numRowsPerMat = fread(fid, inf, "uint64");
+    fprintf('Finished loading the number of rows per matrix.\n')
+
+    indexii = 1;  % row index
+    indexjj = 1;  % element index
+    mats = zeros(numel(columnsBuffer),1);
+    for ii = 1:numel(numRowsPerMat)
+        seg = offsetsBuffer(indexii:indexii+numRowsPerMat(ii));  % the offset vector of the current matrix
+        mat1 = zeros(seg(end),1);  % of length Nnz of the current matrix
+        mat1(seg(1:end-1)+1) = 1;  % set the first element of each line to be 1
+        mats(indexjj:indexjj+seg(end)-1) = mat1;
+        indexii = indexii+numRowsPerMat(ii)+1;
+        indexjj = indexjj+seg(end);
+    end
+    rows = cumsum(mats);  % the row indices of each line
+    M = sparse(columnsBuffer+1,rows,valuesBuffer,prod(phantomDim), sum(numRowsPerMat));
+    fprintf('Finished sparse matrix construction\n');
+end
 
 function [A, Weights] = CreateA_SIB(M, StructureInfo, targetDose, DS)
     tic

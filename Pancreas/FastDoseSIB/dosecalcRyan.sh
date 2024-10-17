@@ -11,7 +11,7 @@ stride=4
 nPatients=5
 deviceIdx=$1
 
-for ((idx=(($1+1)); idx<=5; idx=${idx}+${stride})); do
+for ((idx=1; idx<=5; idx++)); do
     patientName="Patient00$idx"
     sourcePatientFolder="${sourceFolder}/${patientName}"
     expFolder="${sourcePatientFolder}/QihuiRyan"
@@ -23,6 +23,7 @@ for ((idx=(($1+1)); idx<=5; idx=${idx}+${stride})); do
         --sparsity-threshold=${sparsity} \
         --ndevices=1 \
         --device=${deviceIdx} \
-        --temp_dir=${prepFolder}) \
+        --temp_dir=${prepFolder} \
+        --srworkers=32 ) \
     2>&1 | tee ${logFile}
 done

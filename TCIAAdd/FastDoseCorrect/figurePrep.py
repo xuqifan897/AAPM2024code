@@ -826,7 +826,8 @@ def beamViewGrouping():
         colOffset = (colIdx * 2 + 1) * targetWidth
         ax.text(colOffset, rowOffset, legend, ha="left", va="top", fontsize=fontsize)
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-    imageFile = os.path.join(figureFolder, "TCIASIBBeamsView.png")
+    ax.axis("off")
+    imageFile = os.path.join(figureFolder, "TCIACompareBeamsView.png")
     plt.savefig(imageFile)
     plt.close(fig)
     plt.clf()
@@ -1005,5 +1006,5 @@ if __name__ == "__main__":
     # nrrdVerification()
     # beamViewGrouping()
     # R50Calculation()
-    # doseCalculationTimeComp()
-    BOOTimeComp()
+    doseCalculationTimeComp()
+    # BOOTimeComp()

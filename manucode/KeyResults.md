@@ -77,7 +77,7 @@ Average speedup: 11.66
 | 005 | 2.503 | 3.454 | 4.853 |
 
 ### Dose calculation
-| Patient | Ours | Baseline | Speedup |
+| Patient | Ours (s) | Baseline (s) | Speedup |
 | - | - | - | - |
 | 001 | 71.838 | 1352.117 | 18.822 |
 | 002 | 57.993 | 825.821 | 14.240 |
@@ -87,7 +87,7 @@ Average speedup: 11.66
 | Avg | 66.928 | 994.810 | 14.834 |
 
 ### Optimization
-| Patient | Ours | Baseline | Speedup |
+| Patient | Ours (s) | Baseline (s) | Speedup |
 | - | - | - | - |
 | 001 | 89.400 | 1008.496 | 11.281 |
 | 002 | 76.700 | 980.211 | 12.780 |
@@ -110,7 +110,7 @@ Average speedup: 11.66
 | 190 | 1.986 | 1.869 | 3.675 |
 
 ### Dose calculation
-| Patient | Ours | Baseline | Speedup |
+| Patient | Ours (s) | Baseline (s) | Speedup |
 | - | - | - | - |
 | 002 | 68.383 | 1200.426 | 17.554 |
 | 003 | 59.455 | 809.928 | 13.623 |
@@ -123,7 +123,7 @@ Average speedup: 11.66
 | Avg | 61.933 | 892.376 | 14.235 |
 
 ### Optimization
-| Patient | Ours | Baseline | Speedup |
+| Patient | Ours (s) | Baseline (s) | Speedup |
 | - | - | - | - |
 | 002 | 88.300 | 910.532 | 10.312 |
 | 003 | 41.500 | 358.909 | 8.648 |
@@ -151,7 +151,7 @@ Memcpy operations
 * Total time: 245.12
 
 Sparsification
-* Counted: 384
+* Counted: 385
 * Average time: 6.5977
 * Total time: 2533.5223
 
@@ -244,3 +244,56 @@ Total computation time: 1588.2034
 | 27 | 1.5449 | 1.5463 |
 | 23 | 1.3139 | 1.3139 |
 | 22 | 1.2457 | 1.2457 |
+
+
+# Results on Oct 7th
+### New H&N dose calculation statistics
+| Patient | Ours (s) | Baseline (s) | Speedup |
+| - | - | - | - |
+| 002 | 68.383 | 573.764 | 8.390 |
+| 003 | 59.455 | 577.467 | 9.713 |
+| 009 | 70.075 | 515.794 | 7.361 |
+| 013 | 72.054 | 631.117 | 8.759 |
+| 070 | 65.940 | 738.847 | 11.205 |
+| 125 | 33.248 | 304.300 | 9.152 |
+| 132 | 49.193 | 342.547 | 6.963 |
+| 190 | 69.177 | 590.102 | 8.530 |
+| Avg | 60.941 | 534.242 | 8.759 |
+
+### New pancreas dose calculation statistics
+| Patient | Ours (s) | Baseline (s) | Speedup |
+| - | - | - | - |
+| 001 | 71.838 | 622.771 | 8.669 |
+| 002 | 57.993 | 420.127 | 7.244 |
+| 003 | 75.191 | 528.670 | 7.031 |
+| 004 | 74.643 | 543.180 | 7.277 |
+| 005 | 54.973 | 480.597 | 8.742 |
+| Avg | 66.928 | 519.069 | 7.793 |
+
+### Qihui optimization time analysis
+* Dose coefficients loading time: 1530.2737
+* Matrices construction time: 2243.605
+* IMRT optimization time: 1018.8381
+* Dimension reduction time: 238.1348
+* Number of dimension reductions: 10
+
+### Ryan dose calculation profiling
+Kernel Execution time
+| Kernel | Invocations | Time Avg (ms) | Time total (ms) |
+| - | - | - | - |
+| cudaBeamletRaytrace | 32 | 21.269 | 680.609 |
+| PackRowConvolve | 32 | 9.555 | 305.763 |
+| PackedREVtoBEVdose | 32 | 0.816 | 26.102 |
+| UnpackBEVDosePillar | 385 | 0.184 | 70.857 |
+| Memory Operations | 385 | 0.540 | 208.454 |
+| Sparsification | 385 | 2.148 | 826.991 |
+
+Memcpy operations
+* Invocations: 385
+* Average time: 0.540
+* Total time: 208.454
+
+Sparsification
+* Counted: 385
+* Average time: 2.148
+* Total time: 826.991

@@ -16,78 +16,58 @@ sourceFolder = "/data/qifan/projects/FastDoseWorkplace/Pancreas/plansSIB";
 numPatients = 5;
 thresh = 1e-6;
 
-for i = 1:1
-    patientName = ['Patient00', num2str(i)];
-    expFolder = fullfile(sourceFolder, patientName, 'QihuiRyan');
+patientName = 'Patient001';
+expFolder = fullfile(sourceFolder, patientName, 'QihuiRyan');
 
-    % load StructureInfo
-    StructureInfoFile = fullfile(expFolder, 'StructureInfo1.mat');
-    load(StructureInfoFile, 'StructureInfo');
+% load StructureInfo
+StructureInfoFile = fullfile(expFolder, 'StructureInfo1.mat');
+load(StructureInfoFile, 'StructureInfo');
 
-    % load params
-    paramsFile = fullfile(expFolder, 'params1.mat');
-    load(paramsFile, 'params');
+% load params
+paramsFile = fullfile(expFolder, 'params1.mat');
+load(paramsFile, 'params');
 
-    % load target dose array
-    targetDoseFile = fullfile(sourceFolder, patientName, 'doseNorm.bin');
-    fileID = fopen(targetDoseFile, 'r');
-    targetDose = fread(fileID, 'float32');
-    fclose(fileID);
-    shape = size(StructureInfo(1).Mask);
-    shape_flip = [shape(2), shape(1), shape(3)];
-    targetDose = reshape(targetDose, shape_flip);
-    targetDose = permute(targetDose, [2, 1, 3]);
+% load target dose array
+targetDoseFile = fullfile(sourceFolder, patientName, 'doseNorm.bin');
+fileID = fopen(targetDoseFile, 'r');
+targetDose = fread(fileID, 'float32');
+fclose(fileID);
+shape = size(StructureInfo(1).Mask);
+shape_flip = [shape(2), shape(1), shape(3)];
+targetDose = reshape(targetDose, shape_flip);
+targetDose = permute(targetDose, [2, 1, 3]);
 
-    % load matrix M
-    h5file = fullfile(expFolder, 'Dose_Coefficients.h5');
-    maskfile = fullfile(expFolder, 'Dose_Coefficients.mask');
-    [M, dose_data, masks] = BuildDoseMatrix(h5file, maskfile, thresh);
+% load matrix M
+doseCoefficientTic = tic;
+h5file = fullfile(expFolder, 'Dose_Coefficients.h5');
+maskfile = fullfile(expFolder, 'Dose_Coefficients.mask');
+[M, dose_data, masks] = BuildDoseMatrix(h5file, maskfile, thresh);
+doseCoefficientToc = toc(doseCoefficientTic);
 
-    % construct matrix A and weights
-    DS = 1;
-    [A, Weights] = CreateA_SIB(M, StructureInfo,targetDose, DS);
-    ATrans = A';
-    [Dx, Dy] = CreateDxDyFMO(params.BeamletLog0);
-    D = [Dx; Dy];
+% construct matrix A and weights
+constructMatricesTic = tic;
+DS = 1;
+[A, Weights] = CreateA_SIB(M, StructureInfo,targetDose, DS);
+ATrans = A';
+[Dx, Dy] = CreateDxDyFMO(params.BeamletLog0);
+D = [Dx; Dy];
+constructMatricesToc = toc(constructMatricesTic);
 
-    % beam selection
-    seed = 2;
-    rng(seed);
-    tic
-    [xFista, costsFista, activeBeams, activeNorms, topN] = BOO_IMRT_L2OneHalf_cpu_QL(A,ATrans,D,Weights,params);
-    timeBeamSelect = toc;
-    BOOresult = struct('patientName',patientName,...
-        'params',params,'StructureInfo',StructureInfo,'xFista',xFista,...
-        'activeBeams',activeBeams,'activeNorms',activeNorms,...
-        'costsFista',costsFista,'timeBeamSelect',timeBeamSelect);
-    save(fullfile(expFolder, ['BOOresult.mat']), 'BOOresult');
+% beam selection
+seed = 2;
+rng(seed);
+tic
+[xFista, costsFista, activeBeams, activeNorms, topN, dimensionReductionTime] = BOO_IMRT_profile(A,ATrans,D,Weights,params);
+timeBeamSelect = toc;
 
-    % Show selected beams
-    finalBeams = activeBeams;
-    finalBeamsVarianIEC = params.beamVarianIEC(finalBeams,:);
-    gantryVarianIEC = finalBeamsVarianIEC(:,1);
-    couchVarianIEC = finalBeamsVarianIEC(:,2);
-
-    % Polish step
-    paramsPolish = params;
-    paramsPolish.maxIter = 500;
-    tic
-    [xPolish,costsDF_polish, costs_polish] = polish_BOO_IMRT_cpu(finalBeams,A,D,Weights,paramsPolish);
-    timePolish = toc;
-
-    dose = M * xPolish;
-    dose = reshape(dose, shape);
-    polishResult = struct('patientName', patientName, 'dose', dose, 'finalBeams', finalBeams, ...
-        'xPolish', xPolish, 'timePolish', timePolish, 'costsDF_polish', costsDF_polish, ...
-        'gantryVarianIEC', gantryVarianIEC, 'couchVarianIEC', couchVarianIEC);
-    save(fullfile(expFolder, 'PolishResult.mat'), 'polishResult');
-
-    finalBeams = finalBeams';
-    selected_angles = struct('beamId',finalBeams,'gantryVarianIEC',gantryVarianIEC,'couchVarianIEC',couchVarianIEC);
-    T = struct2table(selected_angles);
-    filename = fullfile(expFolder,['selected_angles','.csv']);
-    writetable(T,filename)
-end
+dimensionReductionTime_total = sum(cell2mat(dimensionReductionTime));
+logInfo = ['Dose coefficients loading time: ', num2str(doseCoefficientToc) , ...
+    '\nMatrices construction time: ', num2str(constructMatricesToc), ...
+    '\nIMRT optimization time: ', num2str(timeBeamSelect), ...
+    '\ndimension reduction time: ', num2str(dimensionReductionTime_total), ...
+    '\nnumber of dimension reductions: ', num2str(length(dimensionReductionTime)), ...
+    '\n'];
+fprintf(logInfo);
 
 
 function [A, Weights] = CreateA_SIB(M, StructureInfo, targetDose, DS)

@@ -85,7 +85,7 @@ class kernelLaunchEntry:
 
 def analyzeProfilingRyan():
     resultFolder = "/data/qifan/projects/FastDoseWorkplace/profiling"
-    resultFile = "Ryan_dosecalc_nsys.h5"
+    resultFile = "Ryan_dosecalc_sr32.h5"
     resultFile = os.path.join(resultFolder, resultFile)
     hdf5Dict = {}
     def loadH5toDict(name, obj):
@@ -115,17 +115,25 @@ def analyzeProfilingRyan():
     
     kernelLaunchInfo = hdf5Dict['CUPTI_ACTIVITY_KIND_KERNEL']
     kernelLaunchInfo = kernelLaunchEntry.convertToStructList(kernelLaunchInfo)
-    beamletRayTrace = ("beamletRayTrace", 1592)
-    packRowConvolve = ("packRowConvolve", 1595)
-    revToBev = ("revToBev", 1597)
-    unpackBevDosePillar = ("unpackBevDosePillar", 1600)
-    statDict = {beamletRayTrace: [], packRowConvolve: [], revToBev: [], unpackBevDosePillar: []}
+
+    StringIds = hdf5Dict["StringIds"]
+    beamletRayTraceByteString = "cudaBeamletRaytrace".encode('utf-8')
+    packRowConvolveByteString = "PackRowConvolve".encode('utf-8')
+    revToBevByteString = "PackedREVtoBEVdose".encode('utf-8')
+    unpackBevDosePillarByteString =  "UnpackBEVDosePillar".encode('utf-8')
+    correspondence = {beamletRayTraceByteString: None, packRowConvolveByteString: None,
+        revToBevByteString: None, unpackBevDosePillarByteString: None}
+    for idx, byteString in StringIds:
+        for key in correspondence:
+            if key == byteString:
+                correspondence[key] = idx
+    statDict = {(a.decode('utf-8'), b): [] for a, b in correspondence.items()}
     for entry in kernelLaunchInfo:
         for key, collection in statDict.items():
             if entry.shortName == key[1]:
                 collection.append(entry)
     
-    averageTimeDict = {beamletRayTrace: 0, packRowConvolve: 0, revToBev: 0, unpackBevDosePillar: 0}
+    averageTimeDict = {key: 0 for key in statDict.keys()}
     print("Kernel Launch Info")
     for key in averageTimeDict:
         collection = statDict[key]
@@ -136,6 +144,15 @@ def analyzeProfilingRyan():
         timeAvg = timeTotal / len(collection)
         averageTimeDict[key] = timeAvg
         print("| {} | {} | {:.3f} | {:.3f} |".format(key[0], len(collection), timeAvg, timeTotal))
+
+    statDictKeys = list(statDict.keys())
+    revToBev = None
+    beamletRayTrace = None
+    for arg in statDictKeys:
+        if arg[0] == "PackedREVtoBEVdose":
+            revToBev = arg
+        if arg[0] == "cudaBeamletRaytrace":
+            beamletRayTrace = arg
     computationTime = statDict[revToBev][-1].end - statDict[beamletRayTrace][0].start
     computationTime *= 1e-6  # ns to ms
     print("Total computation time: {:.4f}".format(computationTime))
@@ -147,8 +164,9 @@ def analyzeProfilingRyan():
         streamIdxList = [a[4] for a in MemcpyInfo]
         print(streamIdxList)
         return
-    relevantStreamList = [17, 18, 19, 20]
-    MemcpyInfo = [a for a in MemcpyInfo if a[4] in relevantStreamList]
+    
+    timeThresh = 1000000000
+    MemcpyInfo = [a for a in MemcpyInfo if a[0] > timeThresh]
     timeList = []
     for line in MemcpyInfo:
         duration = line[1] - line[0]
@@ -477,7 +495,7 @@ def calcAvg(inputList: List[kernelLaunchEntry]):
 if __name__ == "__main__":
     # readKernel()
     # show_hdf5_structure()
-    # analyzeProfilingRyan()
+    analyzeProfilingRyan()
     # analyzeProfilingFastDose()
     # ncuResultAnalysis()
-    analyzeProfilingOptimize()
+    # analyzeProfilingOptimize()
