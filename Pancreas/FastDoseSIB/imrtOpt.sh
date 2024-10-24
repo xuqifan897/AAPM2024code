@@ -8,12 +8,12 @@ for ((i=1; i<=5; i++)); do
     patientName="Patient00${i}"
     patientFolder="${rootFolder}/${patientName}"
     expFolder="${patientFolder}/FastDose"
-    planFolder="${expFolder}/plan1"
+    planFolder="${expFolder}/plan2"
     if [ ! -d ${planFolder} ]; then
         mkdir ${planFolder}
     fi
 
-    inputFolder="${patientFolder}/FastDose/prep_output"
+    inputFolder="${patientFolder}/FastDose/prep_output_else"
     dimFile="${inputFolder}/dimension.txt"
     readarray -t lines < ${dimFile}
     phantomDim=${lines[0]}
@@ -33,11 +33,11 @@ for ((i=1; i<=5; i++)); do
         --masks "${inputFolder}/roi_list.h5" \
         --primaryROI "ROI" \
         --bboxROI "SKIN" \
-        --structureInfo "${expFolder}/StructureInfo.csv" \
+        --structureInfo "${expFolder}/StructureInfo_else.csv" \
         --params "${expFolder}/params.txt" \
         --beamlist "${expFolder}/beamlist.txt" \
         --mode 1 \
-        --deviceIdx 3 \
+        --deviceIdx 1 \
         --spectrum "${dataFolder}/spec_6mv.spec" \
         --kernel "${dataFolder}/kernel_exp_6mv.txt" \
         --fluenceDim 20 \

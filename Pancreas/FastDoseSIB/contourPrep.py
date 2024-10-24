@@ -605,6 +605,83 @@ def validAngleListGen():
         print(patientName)
 
 
+def closerLookAtTheDose():
+    """
+    Previously, the dose was calculated based on normalization. However, when calculating R50,
+    we realized that the absolute value of the dose is of importance
+    """
+    targetFolder = "/data/qifan/projects/FastDoseWorkplace/Pancreas/plansSIB"
+    for i in range(numPatients):
+        patientName = "Pancreas-CT-CB_{:03d}".format(i+1)
+        patientFolder = os.path.join(rootFolder, patientName)
+        subFolders = os.listdir(patientFolder)
+        if len(subFolders) == 2:
+            subFolders = [a for a in subFolders if "CRANE" in a]
+        patientFolder1 = os.path.join(patientFolder, subFolders[0])
+        domains = os.listdir(patientFolder1)
+
+        # find the planning CT folder, and RTDOSE
+        domains_CT_align = []
+        domains_CT_others = []
+        for domain in domains:
+            domainFolder = os.path.join(patientFolder1, domain)
+            domainFiles = os.listdir(domainFolder)
+            if len(domainFiles) > 1:
+                if "Aligned" in domain:
+                    domains_CT_align.append((domain, len(domainFiles)))
+                else:
+                    domains_CT_others.append((domain, len(domainFiles)))
+
+        CT_align_slices = domains_CT_align[0][1]
+        for entry in domains_CT_align:
+            assert entry[1] == CT_align_slices
+        planCT = [a[0] for a in domains_CT_others if a[1] == CT_align_slices]
+        assert len(planCT) == 1
+        planCT = os.path.join(patientFolder1, planCT[0])
+        # print(planCT, CT_align_slices)
+
+        if False:
+            # find the rt struct file
+            rtDomain = None
+            for domain in domains:
+                if "BSP" in domain:
+                    rtDomain = domain
+                    break
+            rtFile = os.path.join(patientFolder1, rtDomain, "1-1.dcm")
+            rtStruct = RTStructBuilder.create_from(dicom_series_path=planCT, rt_struct_path=rtFile)
+            names = rtStruct.get_roi_names()
+            ptv = "ROI"
+            assert ptv in names
+            ptv = rtStruct.get_roi_mask_by_name(ptv)
+            ptv = np.flip(ptv, axis=2)
+
+        doseFolder = None
+        for domain in domains:
+            domain_lower = domain.lower()
+            if "dose" in domain_lower:
+                domain_folder = os.path.join(patientFolder1, domain)
+                if(len(os.listdir(domain_folder))) == 1:
+                    doseFolder = domain_folder
+                    break
+        assert doseFolder is not None
+        doseFile = os.path.join(doseFolder, '1-1.dcm')
+        assert os.path.isfile(doseFile)
+        doseDataset = pydicom.dcmread(doseFile)
+        doseGridScaling = doseDataset.DoseGridScaling
+        doseArray = doseDataset.pixel_array
+        doseArrayMax = np.max(doseArray)
+        doseArrayMaxReal = doseArrayMax * doseGridScaling
+        
+        # rescale the original dose to the real scale
+        doseInput = os.path.join(targetFolder, "Patient{:03d}".format(i+1), "doseRef.bin")
+        doseInput = np.fromfile(doseInput, dtype=np.float32)
+        doseInputMax = np.max(doseInput)
+        doseInput *= doseArrayMaxReal / doseInputMax
+        outputFile = os.path.join(targetFolder, "Patient{:03d}".format(i+1), "dosePhysical.bin")
+        doseInput.tofile(outputFile)
+        print(outputFile)
+
+
 if __name__ == "__main__":
     # dvhPtv()
     # folderMapInit()
@@ -614,4 +691,5 @@ if __name__ == "__main__":
     # doseNorm()
     # StructureInfoGen()
     # paramsCopy()
-    validAngleListGen()
+    # validAngleListGen()
+    closerLookAtTheDose()

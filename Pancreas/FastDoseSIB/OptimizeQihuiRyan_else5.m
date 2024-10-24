@@ -17,12 +17,12 @@ sourceFolder = "/data/qifan/projects/FastDoseWorkplace/Pancreas/plansSIB";
 numPatients = 5;
 thresh = 1e-6;
 
-for idx = 1:numPatients
+idx = 2;
     patientName = ['Patient00', num2str(idx)];
     expFolder = fullfile(sourceFolder, patientName, 'QihuiRyan');
 
     % load StructureInfo
-    StructureInfoFile = fullfile(expFolder, 'StructureInfo_else5.mat');
+    StructureInfoFile = fullfile(expFolder, 'StructureInfo_else5_PTV50.mat');
     load(StructureInfoFile, 'StructureInfo');
 
     % load params
@@ -61,7 +61,7 @@ for idx = 1:numPatients
         'params',params,'StructureInfo',StructureInfo,'xFista',xFista,...
         'activeBeams',activeBeams,'activeNorms',activeNorms,...
         'costsFista',costsFista,'timeBeamSelect',timeBeamSelect);
-    save(fullfile(expFolder, 'BOOresult_else5.mat'), 'BOOresult');
+    save(fullfile(expFolder, 'BOOresult_else5_PTV50.mat'), 'BOOresult');
 
     % Show selected beams
     finalBeams = activeBeams;
@@ -81,14 +81,13 @@ for idx = 1:numPatients
     polishResult = struct('patientName', patientName, 'dose', dose, 'finalBeams', finalBeams, ...
         'xPolish', xPolish, 'timePolish', timePolish, 'costsDF_polish', costsDF_polish, ...
         'gantryVarianIEC', gantryVarianIEC, 'couchVarianIEC', couchVarianIEC);
-    save(fullfile(expFolder, 'PolishResult_else5.mat'), 'polishResult');
+    save(fullfile(expFolder, 'PolishResult_else5_PTV50.mat'), 'polishResult');
 
     finalBeams = finalBeams';
     selected_angles = struct('beamId',finalBeams,'gantryVarianIEC',gantryVarianIEC,'couchVarianIEC',couchVarianIEC);
     T = struct2table(selected_angles);
-    filename = fullfile(expFolder,['selected_angles_else5','.csv']);
+    filename = fullfile(expFolder,['selected_angles_else5_PTV50','.csv']);
     writetable(T,filename)
-end
 
 
 function [A, Weights] = CreateA_SIB(M, StructureInfo, targetDose, DS)

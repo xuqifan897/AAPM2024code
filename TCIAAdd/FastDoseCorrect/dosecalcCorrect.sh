@@ -42,7 +42,7 @@ for patientName in 132; do
             --params "${expFolder}/params1.txt" \
             --beamlist "${targetPatientFolder}/beamlist${segment}.txt" \
             --mode 0 \
-            --deviceIdx 2 \
+            --deviceIdx 1 \
             --spectrum "${dataFolder}/spec_6mv.spec" \
             --kernel "${dataFolder}/kernel_exp_6mv.txt" \
             --fluenceDim 20 \

@@ -299,8 +299,9 @@ def drawDoseWash():
         imageList = []
         doseShowMax = max(np.max(doseClinic), np.max(doseFastDose), np.max(doseQihuiRyan))
         print(patientName)
+        doseThreshValue = 0.2 * prescription
         for name, doseArray in doseList:
-            threshMask = doseArray > 0.2 * prescription
+            threshMask = doseArray > doseThreshValue
 
             densityAxial = density[z, :, :]
             doseAxial = doseArray[z, :, :]
@@ -308,7 +309,7 @@ def drawDoseWash():
             bodyAxial = body[z, :, :]
             threshMaskAxial = threshMask[z, :, :]
             axialImage = drawSlice(densityAxial, doseAxial, masksAxial, bodyAxial,
-                ImageHeight, ImageWidth, beamViewColorMap, doseShowMax, threshMaskAxial)
+                ImageHeight, ImageWidth, beamViewColorMap, doseShowMax, doseThreshValue, threshMaskAxial)
             
             densityCoronal = np.flip(density[:, y, :], axis=0)
             doseCoronal = np.flip(doseArray[:, y, :], axis=0)
@@ -316,7 +317,7 @@ def drawDoseWash():
             bodyCoronal = np.flip(body[:, y, :], axis=0)
             threshMaskCoronal = np.flip(threshMask[:, y, :], axis=0)
             coronalImage = drawSlice(densityCoronal, doseCoronal, masksCoronal, bodyCoronal,
-                ImageHeight, CoronalWidth, beamViewColorMap, doseShowMax, threshMaskCoronal)
+                ImageHeight, CoronalWidth, beamViewColorMap, doseShowMax, doseThreshValue, threshMaskCoronal)
             
             densitySagittal = np.flip(density[:, :, x], axis=0)
             doseSagittal = np.flip(doseArray[:, :, x], axis=0)
@@ -324,7 +325,7 @@ def drawDoseWash():
             bodySagittal = np.flip(body[:, :, x], axis=0)
             threshMaskSagittal = np.flip(threshMask[:, :, x], axis=0)
             sagittalImage = drawSlice(densitySagittal, doseSagittal, masksSagittal, bodySagittal,
-                ImageHeight, SagittalWidth, beamViewColorMap, doseShowMax, threshMaskSagittal)
+                ImageHeight, SagittalWidth, beamViewColorMap, doseShowMax, doseThreshValue, threshMaskSagittal)
             
             ImageRow = np.concatenate((axialImage, coronalImage, sagittalImage), axis=1)
             imageList.append(ImageRow)
@@ -332,14 +333,14 @@ def drawDoseWash():
         patientImage = np.concatenate(imageList, axis=0)
 
         # generate colorbar
-        colorBarLocal = colorBarGen(doseShowMax, patientImage.shape[0])
+        colorBarLocal = colorBarGen(doseShowMax, doseThreshValue, patientImage.shape[0])
         patientImage = np.concatenate((patientImage, colorBarLocal), axis=1)
         patientImageFile = os.path.join(doseWashFolder, patientName+".png")
         plt.imsave(patientImageFile, patientImage)
         print(patientImageFile, "\n")
 
 
-def colorBarGen(doseShowMax, targetHeight):
+def colorBarGen(doseShowMax, doseShowMin, targetHeight):
     """
     This function generates the colorbar
     """
@@ -350,7 +351,7 @@ def colorBarGen(doseShowMax, targetHeight):
     fig.patch.set_facecolor("black")
     ax.set_facecolor("black")
 
-    cax = ax.imshow(image, cmap="jet", vmin=0, vmax=doseShowMax)
+    cax = ax.imshow(image, cmap="jet", vmin=doseShowMin, vmax=doseShowMax)
     cbar = fig.colorbar(cax, ax=ax, orientation="vertical")
 
     ax.tick_params(axis="x", colors="white")
@@ -376,8 +377,7 @@ def colorBarGen(doseShowMax, targetHeight):
 
 
 def drawSlice(densitySlice, doseSlice, maskSlice, bodySlice,
-    height, width, colorMap, doseShowMax, threshMask):
-    doseThresh = 10
+    height, width, colorMap, doseShowMax, doseShowMin, threshMask):
     maskCentroid = calcCentroid2d(bodySlice)
     densityCrop = crop_and_fill(densitySlice, maskCentroid, height, width)
     doseCrop = crop_and_fill(doseSlice, maskCentroid, height, width)
@@ -393,7 +393,7 @@ def drawSlice(densitySlice, doseSlice, maskSlice, bodySlice,
         contours = measure.find_contours(mask)
         for contour in contours:
             ax.plot(contour[:, 1], contour[:, 0], color=color, linewidth=0.5)
-    ax.imshow(doseCrop, cmap="jet", vmin=0, vmax=doseShowMax, alpha=threshMaskCrop*0.3)
+    ax.imshow(doseCrop, cmap="jet", vmin=doseShowMin, vmax=doseShowMax, alpha=threshMaskCrop*0.3)
     ax.axis("off")
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
     buf = BytesIO()
@@ -815,14 +815,14 @@ def beamViewGrouping():
     fontsize = 25
     rowOffset__ = 10
     for i in range(numPatients):
-        legend = "Patient {}\nOurs".format(patientList[i])
+        legend = "Patient {}\nUHPP".format(patientList[i])
         rowIdx = i // 2
         rowOffset = rowIdx * targetHeight + rowOffset__
         colIdx = i % 2
         colOffset = 2 * colIdx * targetWidth
         ax.text(colOffset, rowOffset, legend, ha="left", va="top", fontsize=fontsize)
 
-        legend = "Patient {}\nBaseline".format(patientList[i])
+        legend = "Patient {}\nSOTA".format(patientList[i])
         colOffset = (colIdx * 2 + 1) * targetWidth
         ax.text(colOffset, rowOffset, legend, ha="left", va="top", fontsize=fontsize)
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
@@ -838,7 +838,7 @@ def R50Calculation():
     This function calculates R50
     """
     dosePercentile = 10
-    content = ["| Patient | Ours | Baseline | Clinical |", "| - | - | - | - |"]
+    content = ["| Patient | VMAT | UHPP-$4\pi$ | SOTA-$4\pi$ |", "| - | - | - | - |"]
     for patientName in patientList:
         doseRef = os.path.join(rootFolder, patientName, "dose.bin")
         doseFastDose = os.path.join(sourceFolder, patientName, "FastDose", "plan1", "dose.bin")
@@ -878,7 +878,7 @@ def R50Calculation():
         doseQihuiRyanR50 = np.sum(doseQihuiRyanR50) / ptvVoxels
 
         line = "| {} | {:.3f} | {:.3f} | {:.3f} |".format(
-            patientName, doseFastDoseR50, doseQihuiRyanR50, doseRefR50)
+            patientName, doseRefR50, doseFastDoseR50, doseQihuiRyanR50)
         content.append(line)
     content = "\n".join(content)
     print(content)
@@ -916,7 +916,7 @@ def doseCalculationTimeComp():
         result = minutes * 60 + seconds
         return result
     
-    content = ["| Patient | Ours | Baseline | Speedup |",
+    content = ["| Patient | UHPP-$4\pi$ (s) | SOTA-$4\pi$ (s) | Speedup |",
         "| - | - | - | - |"]
     FastDoseTimeList = []
     baselineTimeList = []
@@ -964,7 +964,7 @@ def BOOTimeComp():
     with open(BOOTimeFile, "r") as f:
         BOOlines = f.readlines()
     BOOlines = [eval(a) for a in BOOlines]
-    content = ["| Patient | Ours | Baseline | Speedup |",
+    content = ["| Patient | UHPP-$4\pi$ (s) | SOTA-$4\pi$ (s) | Speedup |",
         "| - | - | - | - |"]
     oursTimeList = []
     speedupList = []
@@ -1000,11 +1000,11 @@ def BOOTimeComp():
 
 
 if __name__ == "__main__":
-    # StructsInit()
+    StructsInit()
     # DVH_comp()
-    # drawDoseWash()
+    drawDoseWash()
     # nrrdVerification()
     # beamViewGrouping()
     # R50Calculation()
-    doseCalculationTimeComp()
+    # doseCalculationTimeComp()
     # BOOTimeComp()

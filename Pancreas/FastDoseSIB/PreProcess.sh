@@ -8,8 +8,8 @@ for ((i=0; i<${numPatients}; i++)); do
     patientName="Patient00$(($i+1))"
     patientFolder="${rootFolder}/${patientName}"
     FastDoseFolder="${patientFolder}/FastDose"
-    structuresFile="${FastDoseFolder}/structures.json"
-    InputFolder="${FastDoseFolder}/prep_output"
+    structuresFile="${patientFolder}/structures_else.json"
+    InputFolder="${FastDoseFolder}/prep_output_else"
     maskFolder="${patientFolder}/InputMask"
     phantomPath="${patientFolder}/density_raw.bin"
 

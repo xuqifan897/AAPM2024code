@@ -13,7 +13,7 @@ colors = list(mcolors.TABLEAU_COLORS.values()) + list(mcolors.XKCD_COLORS.values
 sourceFolder = "/data/qifan/projects/FastDoseWorkplace/Pancreas/plansSIB"
 numPatients = 5
 isoRes = 2.5  # mm
-figureFolder = "/data/qifan/projects/AAPM2024/manufigures/PancreasSIB"
+figureFolder = "/data/qifan/projects/AAPM2024/manufigures/PancreasSIBReplan"
 if not os.path.isdir(figureFolder):
     os.mkdir(figureFolder)
 
@@ -46,10 +46,21 @@ def DVH_comp():
 
         clinicalDose = os.path.join(patientFolder, "doseNorm.bin")
         clinicalDose = np.fromfile(clinicalDose, dtype=np.float32)
-        FastDoseDose = os.path.join(patientFolder, "FastDose", "plan1", "dose.bin")
+        dosePhysical = os.path.join(patientFolder,  "dosePhysical.bin")
+        dosePhysical = np.fromfile(dosePhysical, dtype=np.float32)
+        FastDoseDose = os.path.join(patientFolder, "FastDose", "plan2", "dose.bin")
         FastDoseDose = np.fromfile(FastDoseDose, dtype=np.float32)
-        QihuiRyanDose = os.path.join(patientFolder, "QihuiRyan", "doseQihuiRyan.bin")
+        QihuiRyanDose = os.path.join(patientFolder, "QihuiRyan", "doseQihuiRyan_else5.bin")
+        if i == 1:
+            QihuiRyanDose = os.path.join(patientFolder, "QihuiRyan", "doseQihuiRyan_else5_PTV50.bin")
         QihuiRyanDose = np.fromfile(QihuiRyanDose, dtype=np.float32)
+
+        # normalize to physical dose
+        rescaleFactor = np.max(dosePhysical) / np.max(clinicalDose)
+        clinicalDose *= rescaleFactor
+        assert(np.max(np.abs(clinicalDose - dosePhysical)) < 1e-4)
+        FastDoseDose *= rescaleFactor
+        QihuiRyanDose *= rescaleFactor
         
         masks = {}
         for name in relevantStructures:
@@ -127,12 +138,27 @@ def drawDoseWash():
         clinicalDose = os.path.join(patientFolder, "doseNorm.bin")
         clinicalDose = np.fromfile(clinicalDose, dtype=np.float32)
         clinicalDose = np.reshape(clinicalDose, dimension_flip)
-        FastDoseDose = os.path.join(patientFolder, "FastDose", "plan1", "dose.bin")
+
+        dosePhysical = os.path.join(patientFolder,  "dosePhysical.bin")
+        dosePhysical = np.fromfile(dosePhysical, dtype=np.float32)
+        dosePhysical = np.reshape(dosePhysical, dimension_flip)
+
+        FastDoseDose = os.path.join(patientFolder, "FastDose", "plan2", "dose.bin")
         FastDoseDose = np.fromfile(FastDoseDose, dtype=np.float32)
         FastDoseDose = np.reshape(FastDoseDose, dimension_flip)
-        QihuiRyanDose = os.path.join(patientFolder, "QihuiRyan", "doseQihuiRyan.bin")
+
+        QihuiRyanDose = os.path.join(patientFolder, "QihuiRyan", "doseQihuiRyan_else5.bin")
+        if i == 1:
+            QihuiRyanDose = os.path.join(patientFolder, "QihuiRyan", "doseQihuiRyan_else5_PTV50.bin")
         QihuiRyanDose = np.fromfile(QihuiRyanDose, dtype=np.float32)
         QihuiRyanDose = np.reshape(QihuiRyanDose, dimension_flip)
+
+        # normalize to physical dose
+        rescaleFactor = np.max(dosePhysical) / np.max(clinicalDose)
+        clinicalDose *= rescaleFactor
+        assert(np.max(np.abs(clinicalDose - dosePhysical)) < 1e-4)
+        FastDoseDose *= rescaleFactor
+        QihuiRyanDose *= rescaleFactor
         
         masks = {}
         relevantStructures = ["PTV", "Stomach_duo_planCT", "Bowel_sm_planCT",
@@ -169,7 +195,7 @@ def drawDoseWash():
         print(patientName)
         for name, doseArray in doseList:
             ptvDose = doseArray[ptv]
-            ptvThresh = np.percentile(ptvDose, 5)
+            ptvThresh = np.percentile(ptvDose, 10)
             doseWashThresh = 0.2 * ptvThresh  # dose wash threshold is set to be 20% of the ptv dose
             threshMask = doseArray > doseWashThresh
 
@@ -179,7 +205,7 @@ def drawDoseWash():
             bodyAxial = body[z, :, :]
             threshMaskAxial = threshMask[z, :, :]
             axialImage = drawSlice(densityAxial, doseAxial, masksAxial, bodyAxial,
-                ImageHeight, AxialWidth, colorMap, doseShowMax, threshMaskAxial)
+                ImageHeight, AxialWidth, colorMap, doseShowMax, threshMaskAxial, doseWashThresh)
             
             densityCoronal = np.flip(density[:, y, :], axis=0)
             doseCoronal = np.flip(doseArray[:, y, :], axis=0)
@@ -187,7 +213,7 @@ def drawDoseWash():
             bodyCoronal = np.flip(body[:, y, :], axis=0)
             threshMaskCoronal = np.flip(threshMask[:, y, :], axis=0)
             coronalImage = drawSlice(densityCoronal, doseCoronal, masksCoronal, bodyCoronal,
-                ImageHeight, CoronalWidth, colorMap, doseShowMax, threshMaskCoronal)
+                ImageHeight, CoronalWidth, colorMap, doseShowMax, threshMaskCoronal, doseWashThresh)
             
             densitySagittal = np.flip(density[:, :, x], axis=0)
             doseSagittal = np.flip(doseArray[:, :, x], axis=0)
@@ -195,7 +221,7 @@ def drawDoseWash():
             bodySagittal = np.flip(body[:, :, x], axis=0)
             threshMaskSagittal = np.flip(threshMask[:, :, x], axis=0)
             sagittalImage = drawSlice(densitySagittal, doseSagittal, masksSagittal, bodySagittal,
-                ImageHeight, SagittalWidth, colorMap, doseShowMax, threshMaskSagittal)
+                ImageHeight, SagittalWidth, colorMap, doseShowMax, threshMaskSagittal, doseWashThresh)
             
             ImageRow = np.concatenate((axialImage, coronalImage, sagittalImage), axis=1)
             imageList.append(ImageRow)
@@ -203,7 +229,7 @@ def drawDoseWash():
         patientImage = np.concatenate(imageList, axis=0)
 
         # generate colorbar
-        colorBarLocal = colorBarGen(doseShowMax, patientImage.shape[0])
+        colorBarLocal = colorBarGen(doseWashThresh, doseShowMax, patientImage.shape[0])
         patientImage = np.concatenate((patientImage, colorBarLocal), axis=1)
 
         patientImageFile = os.path.join(doseWashFolder, patientName + ".png")
@@ -212,8 +238,7 @@ def drawDoseWash():
 
 
 def drawSlice(densitySlice, doseSlice, maskSlice, bodySlice,
-    height, width, colorMap, doseShowMax, threshMask):
-    doseThresh = 10
+    height, width, colorMap, doseShowMax, threshMask, doseWashThresh):
     maskCentroid = calcCentroid2d(bodySlice)
     densityCrop = crop_and_fill(densitySlice, maskCentroid, height, width)
     doseCrop = crop_and_fill(doseSlice, maskCentroid, height, width)
@@ -229,7 +254,7 @@ def drawSlice(densitySlice, doseSlice, maskSlice, bodySlice,
         contours = measure.find_contours(mask)
         for contour in contours:
             ax.plot(contour[:, 1], contour[:, 0], color=color, linewidth=0.5)
-    ax.imshow(doseCrop, cmap="jet", vmin=0, vmax=doseShowMax, alpha=threshMaskCrop*0.3)
+    ax.imshow(doseCrop, cmap="jet", vmin=doseWashThresh, vmax=doseShowMax, alpha=threshMaskCrop*0.3)
     ax.axis("off")
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
     buf = BytesIO()
@@ -302,7 +327,7 @@ def calcCentroid2d(mask):
     return result
 
 
-def colorBarGen(doseShowMax, targetHeight):
+def colorBarGen(doseShowMin, doseShowMax, targetHeight):
     """
     This function generates the colorbar
     """
@@ -313,7 +338,7 @@ def colorBarGen(doseShowMax, targetHeight):
     fig.patch.set_facecolor("black")
     ax.set_facecolor("black")
 
-    cax = ax.imshow(image, cmap="jet", vmin=0, vmax=doseShowMax)
+    cax = ax.imshow(image, cmap="jet", vmin=doseShowMin, vmax=doseShowMax)
     cbar = fig.colorbar(cax, ax=ax, orientation="vertical")
 
     ax.tick_params(axis="x", colors="white")
@@ -365,9 +390,11 @@ def nrrdVerification():
     ptv = "ROI"
     body = "SKIN"
     beams = "BEAMS"
+    RingStructure = "ELSE"
     assert ptv in structsList and body in structsList
     structsList.remove(ptv)
     structsList.remove(body)
+    structsList.remove(RingStructure)
     structsList.sort()
     structsList.insert(0, ptv)
     structsList.append(beams)
@@ -388,6 +415,7 @@ def nrrdVerification():
 
         maskFolder = os.path.join(patientFolder, "InputMask")
         structs = [a.split(".")[0] for a in os.listdir(maskFolder)]
+        structs = [a for a in structs if a in structsList]
         maskDict = {}
         for struct in structs:
             maskArray = os.path.join(maskFolder, struct + ".bin")
@@ -405,7 +433,7 @@ def nrrdVerification():
             validBeams[j] = line
         
         ptvMask = maskDict["ROI"]
-        beamListFastDose = os.path.join(patientFolder, "FastDose", "plan1", "metadata.txt")
+        beamListFastDose = os.path.join(patientFolder, "FastDose", "plan2", "metadata.txt")
         with open(beamListFastDose, "r") as f:
             beamListFastDose = f.readlines()
         beamListFastDose = beamListFastDose[3]
@@ -419,7 +447,9 @@ def nrrdVerification():
         nrrd.write(file, maskFastDose, headerFastDose)
         print(file)
         
-        beamFileQihuiRyan = os.path.join(patientFolder, "QihuiRyan", "selected_angles.csv")
+        beamFileQihuiRyan = os.path.join(patientFolder, "QihuiRyan", "selected_angles_else5.csv")
+        if i == 1:
+            beamFileQihuiRyan = os.path.join(patientFolder, "QihuiRyan", "selected_angles_else5_PTV50.csv")
         with open(beamFileQihuiRyan, "r") as f:
             beamListQihuiRyan = f.readlines()
         beamListQihuiRyan = beamListQihuiRyan[1:]  # remove the header
@@ -591,8 +621,8 @@ def beamViewGrouping():
     """
     This function groups the beam view images
     """
-    beamViewFastDoseFolder = os.path.join(sourceFolder, "beamViewFastDose")
-    beamViewQihuiRyanFolder = os.path.join(sourceFolder, "beamViewQihuiRyan")
+    beamViewFastDoseFolder = os.path.join(sourceFolder, "beamViewSIBReplan", "FastDose")
+    beamViewQihuiRyanFolder = os.path.join(sourceFolder, "beamViewSIBReplan", "QihuiRyan")
     targetWidth = 500
     FastDoseList = []
     QihuiRyanList = []
@@ -637,19 +667,19 @@ def beamViewGrouping():
     fontsize = 25
     rowOffset__ = 10
     for i in range(numPatients):
-        legend = "Patient {:03d}\nOurs".format(i+1)
+        legend = "Patient {:03d}\nUHPP".format(i+1)
         rowIdx = i // 2
         rowOffset = rowIdx * patchShape[0] + rowOffset__
         colIdx = i % 2
         colOffset = colIdx * 2 * patchShape[1]
         ax.text(colOffset, rowOffset, legend, ha="left", va="top", fontsize=fontsize)
 
-        legend = "Patient {:03d}\nBaseline".format(i+1)
+        legend = "Patient {:03d}\nSOTA".format(i+1)
         colOffset = (colIdx * 2 + 1) * patchShape[1]
         ax.text(colOffset, rowOffset, legend, ha="left", va="top", fontsize=fontsize)
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
     ax.axis("off")
-    imageFile = os.path.join(sourceFolder, "PancreasSIBBeamsView.png")
+    imageFile = os.path.join(sourceFolder, "PancreasSIBBeamsReplanView.png")
     plt.savefig(imageFile)
     plt.close(fig)
     plt.clf()
@@ -660,13 +690,15 @@ def R50Calculation():
     This function calculates R 50
     """
     dosePercentile = 10
-    content = ["| Patient | Ours | Baseline | Clinical |", "| - | - | - | - |"]
+    content = ["| Patient | VMAT | UHPP-$4\pi$ | SOTA-$4\pi$ |", "| - | - | - | - |"]
     for i in range(numPatients):
         patientName = "Patient{:03d}".format(i+1)
         patientFolder = os.path.join(sourceFolder, patientName)
         doseRef = os.path.join(patientFolder, "doseNorm.bin")
-        doseFastDose = os.path.join(patientFolder, "FastDose", "plan1", "dose.bin")
-        doseQihuiRyan = os.path.join(patientFolder, "QihuiRyan", "doseQihuiRyan.bin")
+        doseFastDose = os.path.join(patientFolder, "FastDose", "plan2", "dose.bin")
+        doseQihuiRyan = os.path.join(patientFolder, "QihuiRyan", "doseQihuiRyan_else5.bin")
+        if i == 1:
+            doseQihuiRyan = os.path.join(patientFolder, "QihuiRyan", "doseQihuiRyan_else5_PTV50.bin")
         doseRef = np.fromfile(doseRef, dtype=np.float32)
         doseFastDose = np.fromfile(doseFastDose, dtype=np.float32)
         doseQihuiRyan = np.fromfile(doseQihuiRyan, dtype=np.float32)
@@ -722,7 +754,7 @@ def R50Calculation():
             # print(np.sum(ptvMask), ptvVoxelsRef, ptvVoxelsFastDose, ptvVoxelsQihuiRyan)
             print(np.mean(doseRef), np.mean(doseFastDose), np.mean(doseQihuiRyan))
 
-        line = "| {:03d} | {:.3f} | {:.3f} | {:.3f} |".format(i+1, doseFastDoseR50, doseQihuiRyanR50, doseRefR50)
+        line = "| {:03d} | {:.3f} | {:.3f} | {:.3f} |".format(i+1, doseRefR50, doseFastDoseR50, doseQihuiRyanR50)
         content.append(line)
     content = "\n".join(content)
     print(content)
@@ -861,7 +893,7 @@ def doseCalculationTimeComp():
         result = minutes * 60 + seconds
         return result
     
-    content = ["| Patient | Ours | Baseline | Speedup |",
+    content = ["| Patient | UHPP-$4\pi$ (s) | SOTA-$4\pi$ (s) | Speedup |",
         "| - | - | - | - |"]
     FastDoseTimeList = []
     baselineTimeList = []
@@ -898,11 +930,12 @@ def BOOTimeComp():
     """
     This function compares the dose calculation time between our method and the baseline method
     """
-    BOOTimeFile = os.path.join(os.getcwd(), "BOOTimePancreasSIBBaseline.txt")
+    BOOTimeFile = os.path.join("/data/qifan/projects/AAPM2024/manucode",
+        "BOOTimePancreasSIBBaseline.txt")
     with open(BOOTimeFile, "r") as f:
         BOOlines = f.readlines()
     BOOlines = [eval(a) for a in BOOlines]
-    content = ["| Patient | Ours | Baseline | Speedup |",
+    content = ["| Patient | UHPP-$4\pi$ (s) | SOTA-$4\pi$ (s) | Speedup |",
         "| - | - | - | - |"]
     oursTimeList = []
     speedupList = []
@@ -940,10 +973,10 @@ def BOOTimeComp():
 
 if __name__ == "__main__":
     # DVH_comp()
-    # drawDoseWash()
+    drawDoseWash()
     # nrrdVerification()
     # beamViewGrouping()
-    R50Calculation()
+    # R50Calculation()
     # R50ExaminePlot()
     # doseCalculationTimeComp()
     # BOOTimeComp()

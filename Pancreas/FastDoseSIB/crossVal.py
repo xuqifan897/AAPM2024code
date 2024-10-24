@@ -386,9 +386,137 @@ def viewDose():
             print(figureFile)
 
 
+def totalVoxelCountPatient002():
+    prescription_dose = 20
+    prescription_level = 10  # D90
+    R50_level = prescription_dose * 0.5
+
+    patientFolder = "/data/qifan/projects/FastDoseWorkplace/Pancreas/plansSIB/Patient002"
+    dimension = os.path.join(patientFolder, "FastDose", "prep_output", "dimension.txt")
+    with open(dimension, "r") as f:
+        dimension = f.readline()
+    dimension = eval(dimension.replace(" ", ", "))
+    dimension_flip = np.flip(dimension)
+
+    density = os.path.join(patientFolder, "density_raw.bin")
+    density = np.fromfile(density, dtype=np.uint16)
+    density = np.reshape(density, dimension_flip)
+
+    PTV = os.path.join(patientFolder, "InputMask", "ROI.bin")
+    PTV = np.fromfile(PTV, dtype=np.uint8)
+    PTV = np.reshape(PTV, dimension_flip) > 0
+
+    body = os.path.join(patientFolder, "InputMask", "SKIN.bin")
+    body = np.fromfile(body, dtype=np.uint8)
+    body = np.reshape(body, dimension_flip) > 0
+    not_body = np.logical_not(body)
+
+    doseRef = os.path.join(patientFolder, "doseNorm.bin")
+    doseRef = np.fromfile(doseRef, dtype=np.float32)
+    doseRef = np.reshape(doseRef, dimension_flip)
+    doseRef[not_body] = 0.0
+    PTVdoseRef = doseRef[PTV]
+    threshRef = np.percentile(PTVdoseRef, prescription_level)
+    doseRef *= prescription_dose / threshRef
+
+    doseQihuiRyan = os.path.join(patientFolder, "QihuiRyan", "doseQihuiRyan.bin")
+    doseQihuiRyan = np.fromfile(doseQihuiRyan, dtype=np.float32)
+    doseQihuiRyan = np.reshape(doseQihuiRyan, dimension_flip)
+    doseQihuiRyan[not_body] = 0.0
+    PTVdoseQihuiRyan = doseQihuiRyan[PTV]
+    threshQihuiRyan = np.percentile(PTVdoseQihuiRyan, prescription_level)
+    doseQihuiRyan *= prescription_dose / threshQihuiRyan
+
+    doseFastDose = os.path.join(patientFolder, "FastDose", "plan1", "dose.bin")
+    doseFastDose = np.fromfile(doseFastDose, dtype=np.float32)
+    doseFastDose = np.reshape(doseFastDose, dimension_flip)
+    doseFastDose[not_body] = 0.0
+    PTVdoseFastDose = doseFastDose[PTV]
+    threshFastDose = np.percentile(PTVdoseFastDose, prescription_level)
+    doseFastDose *= prescription_dose / threshFastDose
+
+    figureFolder = os.path.join(patientFolder, "countVoxels")
+    if not os.path.isdir(figureFolder):
+        os.mkdir(figureFolder)
+    
+    doseList = [doseRef, doseFastDose, doseQihuiRyan]
+    titleList = ["Clinical", "UHPP", "SOTA"]
+    if False:
+        for i in range(dimension_flip[0]):
+            fig = plt.figure(figsize=(12, 4))
+            gs = gridspec.GridSpec(1, 3, width_ratios=[1, 1, 1])
+            density_slice = density[i, :, :]
+            PTV_slice = PTV[i, :, :]
+            PTV_contours = measure.find_contours(PTV_slice)
+            for j in range(3):
+                currentBlock = fig.add_subplot(gs[0, j])
+                currentBlock.imshow(density_slice, cmap="gray", vmin=0, vmax=1500)
+                for contour in PTV_contours:
+                    currentBlock.plot(contour[:, 1], contour[:, 0], linewidth=1,
+                        linestyle="--", color=colors[0])
+
+                currentDoseSlice = doseList[j][i, :, :]
+                currentDoseR50 = currentDoseSlice > R50_level
+                currentBlock.imshow(currentDoseSlice, cmap="jet", vmin=0, vmax=50, alpha=0.3*currentDoseR50)
+                currentDoseR50Contours = measure.find_contours(currentDoseR50)
+                for contour in currentDoseR50Contours:
+                    currentBlock.plot(contour[:, 1], contour[:, 0], linewidth=1,
+                        linestyle="--", color=colors[1])
+                nPixels = np.sum(currentDoseR50)
+                currentBlock.set_title("{} R50 voxels: {}".format(titleList[j], nPixels))
+            file = os.path.join(figureFolder, "{:03d}.png".format(i + 1))
+            fig.tight_layout()
+            plt.savefig(file)
+            plt.close(fig)
+            plt.clf()
+            print(file)
+    if False:
+        content = ["| # Slice \ Group | Clinical | UHPP | SOTA |",
+            "| - | - | - | - |"]
+        total_count = [0, 0, 0]
+        for i in range(dimension_flip[0]):
+            localVoxelList = []
+            for j in range(3):
+                currentDoseSlice = doseList[j][i, :, :]
+                currentDoseR50 = currentDoseSlice > R50_level
+                currentVoxels = np.sum(currentDoseR50)
+                localVoxelList.append(currentVoxels)
+                total_count[j] += currentVoxels
+            localLine = "| {} | {} | {} | {} |".format(i+1, *localVoxelList)
+            content.append(localLine)
+        content.append("| Total | {} | {} | {} |".format(*total_count))
+        content = "\n".join(content)
+        print(content)
+
+    if True:
+        content = ["Slice \ Group,Clinical,UHPP,SOTA"]
+        total_count = [0, 0, 0]
+        for i in range(dimension_flip[0]):
+            localVoxelList = []
+            for j in range(3):
+                currentDoseSlice = doseList[j][i, :, :]
+                currentDoseR50 = currentDoseSlice > R50_level
+                currentVoxels = np.sum(currentDoseR50)
+                localVoxelList.append(currentVoxels)
+                total_count[j] += currentVoxels
+            localLine = "{},{},{},{}".format(i+1, *localVoxelList)
+            content.append(localLine)
+        content.append("Total,{},{},{}".format(*total_count))
+        PTVVoxels = np.sum(PTV)
+        content.append("PTV voxels,{},{},{}".format(PTVVoxels, PTVVoxels, PTVVoxels))
+        R50 = np.array(total_count) / PTVVoxels
+        content.append("R50,{},{},{}".format(*R50))
+        content = "\n".join(content)
+        csvFile = os.path.join(patientFolder, "countVoxels.csv")
+        with open(csvFile, "w") as f:
+            f.write(content)
+
+
+
 if __name__ == "__main__":
     # main()
     # cross_validation_beamlist_gen()
     # crossValR50Calc()
     # comp_SOTA_UHPP()
     viewDose()
+    # totalVoxelCountPatient002()
